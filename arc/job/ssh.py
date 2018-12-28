@@ -6,7 +6,8 @@ import paramiko
 import logging
 import os
 
-from arc.settings import servers, check_status_command, submit_command, submit_filename, delete_command
+from arc.settings import servers, check_status_command, submit_command, submit_filename, delete_command,\
+    list_available_nodes_command
 from arc.exceptions import InputError
 
 ##################################################################
@@ -114,18 +115,41 @@ class SSH_Client(object):
         else:
             return 'done'
         status = status_line.split()[4]
-        if status.lower() == 'r':
+        if status.lower() == 'r' or status.lower() == 't':
             return 'running'
+        elif status.lower() == 'eqw':  # Job waiting in error state
+            return 'errored: Eqw'
         else:
-            if servers[self.server]['cluster_soft'] == 'OGE':
+            if servers[self.server]['cluster_soft'].lower() == 'oge':
                 if '.cluster' in status_line:
-                    return 'errored on node ' + status_line.split()[-1].split('@')[1].split('.')[0][-2:]
+                    node = ''
+                    try:
+                        node = status_line.split()[-1].split('@')[1].split('.')[0][-2:]
+                    except IndexError:
+                        pass
+                    return 'errored on node ' + node
                 else:
                     return 'errored'
-            elif servers[self.server]['cluster_soft'] == 'Slurm':
+            elif servers[self.server]['cluster_soft'].lower() == 'slurm':
                 return 'errored on node ' + status_line.split()[-1][-2:]
             else:
-                raise ValueError('Unknown server {0}'.format(self.server))
+                raise ValueError('Unknown server cluster software. Should be either "OGE" or "Slurm",'
+                                 ' got: {0}'.format(servers[self.server]['cluster_soft']))
+
+    def list_available_nodes(self):
+        """
+        Lists available nodes on the server
+        """
+        nodes = list()
+        cmd = list_available_nodes_command[servers[self.server]['cluster_soft']]
+        stdout, _ = self.send_command_to_server(cmd)
+        for line in stdout:
+            if servers[self.server]['cluster_soft'].lower() == 'oge' and '0/0/8' in line:
+                if servers[self.server]['cluster_soft'].lower() == 'oge':
+                    nodes.append(line.split()[0].split('.')[0].split('node')[1])
+                elif servers[self.server]['cluster_soft'].lower() == 'slurm':
+                    pass
+        return nodes
 
     def delete_job(self, job_id):
         """
@@ -138,13 +162,16 @@ class SSH_Client(object):
         """
         Return a list of ``int`` representing job IDs of all jobs submited by the user on a server
         """
-        running_jobs_ids = list()
+        running_jobs_ids, errored_jobs_ids = list(), list()
         cmd = check_status_command[servers[self.server]['cluster_soft']] + ' -u ' + servers[self.server]['un']
         stdout, _ = self.send_command_to_server(cmd)
         for i, status_line in enumerate(stdout):
             if (self.server == 'rmg' and i > 0) or (self.server == 'pharos' and i > 1):
-                running_jobs_ids.append(int(status_line.split()[0]))
-        return running_jobs_ids
+                if not ('eqw' in status_line and 'dT' in status_line):
+                    running_jobs_ids.append(int(status_line.split()[0]))
+                else:
+                    errored_jobs_ids.append(int(status_line.split()[0]))
+        return running_jobs_ids, errored_jobs_ids
 
     def submit_job(self, remote_path):
         job_status = ''

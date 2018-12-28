@@ -147,6 +147,7 @@ class Scheduler(object):
             elif not self.species_dict[species.label].is_ts and self.generate_conformers:
                 self.species_dict[species.label].generate_conformers()
         self.timer = True
+        self.running_jobs_ids, self.errored_jobs_ids = list(), list()
         self.schedule_jobs()
 
     def schedule_jobs(self):
@@ -158,7 +159,9 @@ class Scheduler(object):
         while self.running_jobs != {}:  # loop while jobs are still running
             self.timer = True
             for label in self.unique_species_labels:  # look for completed jobs and decide what jobs to run next
-                self.get_servers_jobs_ids()  # updates `self.servers_jobs_ids`
+                self.get_servers_jobs_ids()  # updates `self.servers_jobs_ids` and `elf.errored_jobs_ids`
+                for job_id in self.errored_jobs_ids:
+                    self.resurrect_job(job_id=job_id)
                 try:
                     job_list = self.running_jobs[label]
                 except KeyError:
@@ -272,7 +275,7 @@ class Scheduler(object):
                 logging.info('Currently running jobs:\n{0}'.format(self.running_jobs))
 
     def run_job(self, label, xyz, level_of_theory, job_type, fine=False, software=None, shift='', trsh='', memory=1500,
-                conformer=-1, ess_trsh_methods=None, scan='', pivots=None, occ=None):
+                conformer=-1, ess_trsh_methods=None, scan='', pivots=None, occ=None, specify_node=False, rerun_times=0):
         """
         A helper function for running (all) jobs
         """
@@ -284,7 +287,8 @@ class Scheduler(object):
         job = Job(project=self.project, settings=self.settings, species_name=label, xyz=xyz, job_type=job_type,
                   level_of_theory=level_of_theory, multiplicity=species.multiplicity, charge=species.charge, fine=fine,
                   shift=shift, software=software, is_ts=species.is_ts, memory=memory, trsh=trsh, conformer=conformer,
-                  ess_trsh_methods=ess_trsh_methods, scan=scan, pivots=pivots, occ=occ)
+                  ess_trsh_methods=ess_trsh_methods, scan=scan, pivots=pivots, occ=occ, specify_node=specify_node,
+                  rerun_times=rerun_times)
         if conformer < 0:
             # this is NOT a conformer job
             self.running_jobs[label].append(job.job_name)  # mark as a running job
@@ -316,7 +320,8 @@ class Scheduler(object):
             self.run_job(label=label, xyz=job.xyz, level_of_theory=job.level_of_theory, job_type=job.job_type,
                          fine=job.fine, software=job.software, shift=job.shift, trsh=job.trsh, memory=job.memory,
                          conformer=job.conformer, ess_trsh_methods=job.ess_trsh_methods, scan=job.scan,
-                         pivots=job.pivots, occ=job.occ)
+                         pivots=job.pivots, occ=job.occ, specify_node=job.specify_node,
+                         rerun_times=job.rerun_times + 1)
         self.running_jobs[label].pop(self.running_jobs[label].index(job_name))
         self.timer = False
         job.run_time = str(datetime.datetime.now() - job.date_time).split('.')[0]
@@ -716,10 +721,34 @@ class Scheduler(object):
         """
         Check status on all active servers, return a list of relevant running job IDs
         """
-        self.servers_jobs_ids = list()
         for server in self.servers:
             ssh = SSH_Client(server)
-            self.servers_jobs_ids.extend(ssh.check_running_jobs_ids())
+            self.running_jobs_ids, self.errored_jobs_ids = ssh.check_running_jobs_ids()
+
+    def resurrect_job(self, job_id=None):
+        if job_id is None:
+            raise SchedulerError('called resurrect_job() with no job ID')
+        job = self.get_job_by_id(job_id=job_id)
+        logging.info('Job {0} seemed to error on the server with status "{1}". Resurrecting job...'.format(
+            job.job_name, job.job_status[0]))
+        job.specify_node = True
+        job.troubleshoot_server()
+
+    def get_job_by_id(self, job_id=None):
+        """Return the Job object from self.job_dict by its job_id attribute"""
+        if job_id is None:
+            raise SchedulerError('called get_job_by_id() with no job ID')
+        for label in self.job_dict.keys():
+            for job_type in self.job_dict[label].keys():
+                if job_type in ['opt', 'sp', 'freq', 'composite', 'conformers']:
+                    for job_name in self.job_dict[label][job_type].keys():
+                        if self.job_dict[label][job_type][job_name].job_id == job_id:
+                            return self.job_dict[label][job_type][job_name]
+                elif job_type == 'scan':
+                    for pivot in self.job_dict[label][job_type].keys():
+                        for job_name in self.job_dict[label][job_type][pivot].keys():
+                            if self.job_dict[label][job_type][pivot][job_name].job_id == job_id:
+                                return self.job_dict[label][job_type][pivot][job_name]
 
     def troubleshoot_negative_freq(self, label, job):
         """

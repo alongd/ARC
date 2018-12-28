@@ -8,7 +8,7 @@ import csv
 import logging
 
 from arc.settings import arc_path, servers, submit_filename, delete_command,\
-    input_filename, output_filename, rotor_scan_resolution, list_available_nodes_command
+    input_filename, output_filename, rotor_scan_resolution
 from arc.job.submit import submit_scripts
 from arc.job.inputs import input_files
 from arc.job.ssh import SSH_Client
@@ -42,7 +42,10 @@ class Job(object):
     `pivots`           ``list``          The rotor scan pivots, if the job type is scan. Not used directly in these
                                            methods, but used to identify the rotor.
     `software`         ``str``           The electronic structure software to be used
+    `server`           ``str``           Server's name. Determined automatically
+    `specify_node`     ``bool``          Whether to specify the node on theserver or let the cluster software decide
     `server_nodes`     ``list``          A list of nodes this job was submitted to (for troubleshooting)
+    `rerun_times`      ``int``           Number of times this job was reran (for troubleshooting)
     `memory`           ``int``           The allocated memory (1000 mb by default)
     `method`           ``str``           The calculation method (e.g., 'B3LYP', 'CCSD(T)', 'CBS-QB3'...)
     `basis_set`        ``str``           The basis set (e.g., '6-311++G(d,p)', 'aug-cc-pVTZ'...)
@@ -60,7 +63,6 @@ class Job(object):
     `remote_path`      ``str``           Remote path to job's folder. Determined automatically
     `submit`           ``str``           The submit script. Created automatically
     `input`            ``str``           The input file. Created automatically
-    `server`           ``str``           Server's name. Determined automatically
     'trsh'             ''str''           A troubleshooting handle to be appended to input files
     'ess_trsh_methods' ``list``          A list of troubleshooting methods already tried out for ESS convergence
     `occ`              ``int``           The number of occupied orbitals (core + val) from a molpro CCSD sp calc
@@ -73,7 +75,7 @@ class Job(object):
     """
     def __init__(self, project, settings, species_name, xyz, job_type, level_of_theory, multiplicity, charge=0,
                  conformer=-1, fine=False, shift='', software=None, is_ts=False, scan='', pivots=None, memory=1500,
-                 comments='', trsh='', ess_trsh_methods=None, occ=None):
+                 comments='', trsh='', ess_trsh_methods=None, occ=None, specify_node=False, rerun_times=0):
         self.project = project
         self.settings=settings
         self.date_time = datetime.datetime.now()
@@ -200,7 +202,9 @@ class Job(object):
                                         species_name_for_remote_path, conformer_folder, self.job_name)
         self.submit = ''
         self.input = ''
+        self.specify_node = specify_node
         self.server_nodes = list()
+        self.rerun_times = rerun_times
         self._write_initiated_job_to_csv_file()
 
     def _set_job_number(self):
@@ -508,7 +512,7 @@ $end
             ssh.delete_job(self.job_id)
 
     def determine_job_status(self):
-        if self.job_status[0] == 'errored':
+        if 'errored' in self.job_status[0].lower():
             return
         server_status = self._check_job_server_status()
         ess_status = ''
@@ -518,9 +522,13 @@ $end
             except IOError:
                 logging.error('Got an IOError when trying to download output file for job {0}.'.format(self.job_name))
                 raise
+            self.job_status = [server_status, ess_status]
         elif server_status == 'running':
             ess_status = 'running'
-        self.job_status = [server_status, ess_status]
+            self.job_status = [server_status, ess_status]
+        else:
+            self.job_status = [server_status, ess_status]
+            self.troubleshoot_server()
 
     def _check_job_server_status(self):
         """
@@ -619,38 +627,50 @@ $end
                 return 'errored: Unknown reason'
 
     def troubleshoot_server(self):
-        # TODO: troubleshoot node on RMG
-        # delete present server run
+        # TODO: troubleshoot node on Slurm
         logging.error('Job {name} has server status {stat} on {server}. Troubleshooting by changing node.'.format(
             name=self.job_name, stat=self.job_status[0], server=self.server))
+        run = False
+        ssh = None
+        node = None
         if self.settings['ssh']:
-            ssh = SSH_Client(self.server)
-            ssh.send_command_to_server(command=delete_command[servers[self.server]['cluster_soft']] +
-                                       ' ' + str(self.job_id))
-            # find available nodes
-            stdout, _ = ssh.send_command_to_server(
-                command=list_available_nodes_command[servers[self.server]['cluster_soft']])
-            for line in stdout:
-                node = line.split()[0].split('.')[0].split('node')[1]
-                if servers[self.server]['cluster_soft'] == 'OGE' and '0/0/8' in line and node not in self.server_nodes:
-                    self.server_nodes.append(node)
-                    break
+            self.delete()
+            if self.specify_node:
+                ssh = SSH_Client(self.server)
+                nodes = ssh.list_available_nodes
+                for node in nodes:
+                    if node not in self.server_nodes:
+                        self.server_nodes.append(node)
+                        break
+                else:
+                    self.specify_node = False  # Couldn't find an available node, let the cluster software decide
+            if self.specify_node and node is not None:
+                if ssh is None:
+                    ssh = SSH_Client(self.server)
+                # modify the submit file
+                content = ssh.read_remote_file(remote_path=self.remote_path,
+                                               filename=submit_filename[servers[self.server]['cluster_soft']])
+                if servers[self.server]['cluster_soft'].lower() == 'oge':
+                    for i, line in enumerate(content):
+                        if '#$ -l h=node' in line:
+                            content[i] = '#$ -l h=node{0}.cluster'.format(node)
+                            break
+                    else:
+                        content.insert(7, '#$ -l h=node{0}.cluster'.format(node))
+                    content = str(''.join(content))  # convert list into a single string, not to upset paramiko
+                    # resubmit
+                    ssh.upload_file(remote_file_path=os.path.join(self.remote_path,
+                                    submit_filename[servers[self.server]['cluster_soft']]), file_string=content)
+                    run = True
+                elif servers[self.server]['cluster_soft'].lower() == 'slurm':
+                    pass
             else:
-                logging.error('Cold not find an available node on the server')  # TODO: continue troubleshooting; if all else fails, put job to sleep for x min and try again searching for a node
-                return
-            # modify submit file
-            content = ssh.read_remote_file(remote_path=self.remote_path,
-                                           filename=submit_filename[servers[self.server]['cluster_soft']])
-            for i, line in enumerate(content):
-                if '#$ -l h=node' in line:
-                    content[i] = '#$ -l h=node{0}.cluster'.format(node)
-                    break
+                # re-run w/o changing the node
+                run = True
+        if run:
+            if self.rerun_times < 10:
+                self.rerun_times += 1
+                self.run()
             else:
-                content.insert(7, '#$ -l h=node{0}.cluster'.format(node))
-            content = ''.join(content)  # convert list into a single string, not to upset paramico
-            # resubmit
-            ssh.upload_file(remote_file_path=os.path.join(self.remote_path,
-                            submit_filename[servers[self.server]['cluster_soft']]), file_string=content)
-            self.run()
-
-# TODO: irc, gsm input files
+                self.job_status[0] = 'errored: reran job {0} times on {1} with no sucsess'.format(
+                    self.job_name, self.server)

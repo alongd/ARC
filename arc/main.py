@@ -444,7 +444,7 @@ class ARC(object):
                 if g03 or g09 or g16:
                     if diagnostics:
                         logging.info('Found Gaussian on {3}: g03={0}, g09={1}, g16={2}'.format(g03, g09, g16, server))
-                    if self.settings['gaussian'] is None or server['precedence'] == 'gaussian':
+                    if self.settings['gaussian'] is None or 'gaussian' in server['precedence']:
                         self.settings['gaussian'] = server
                 elif diagnostics:
                     logging.info('Did NOT find Gaussian on {3}: g03={0}, g09={1}, g16={2}'.format(g03, g09, g16, server))
@@ -453,7 +453,7 @@ class ARC(object):
                 if qchem:
                     if diagnostics:
                         logging.info('Found QChem on {0}'.format(server))
-                    if self.settings['qchem'] is None or server['precedence'] == 'qchem':
+                    if self.settings['qchem'] is None or 'qchem' in server['precedence']:
                         self.settings['qchem'] = server
                 elif diagnostics:
                     logging.info('Did NOT find QChem on {0}'.format(server))
@@ -462,7 +462,7 @@ class ARC(object):
                 if molpro:
                     if diagnostics:
                         logging.info('Found Molpro on {0}'.format(server))
-                    if self.settings['molpro'] is None or server['precedence'] == 'molpro':
+                    if self.settings['molpro'] is None or 'molpro' in server['precedence']:
                         self.settings['molpro'] = server
                 elif diagnostics:
                     logging.info('Did NOT find Molpro on {0}'.format(server))
