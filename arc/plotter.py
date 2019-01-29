@@ -258,7 +258,7 @@ def save_geo(species, project_directory):
         f.write(xyz)
 
     # GaussView file
-    gv = '# hf/3-21g\n\n{0} optimized at {1}\n'.format(
+    gv = '# hf/3-21g\n\n{0} optimized at {1}\n\n'.format(
         species.label, species.opt_level)
     gv += '{0} {1}\n'.format(species.charge, species.multiplicity)
     gv += '{0}\n'.format(species.final_xyz)
