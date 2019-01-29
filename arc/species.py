@@ -23,7 +23,7 @@ from rmgpy.qm.qmdata import QMData
 from rmgpy.qm.symmetry import PointGroupCalculator
 
 from arc.exceptions import SpeciesError, RotorError, InputError
-from arc.settings import arc_path
+from arc.settings import arc_path, minimum_barrier
 
 ##################################################################
 
@@ -1006,3 +1006,15 @@ def determine_rotor_symmetry(rotor_path, label, pivots):
         logging.info('Determined a symmetry number of {0} for rotor of species {1} between pivots {2}'
                      ' based on the {3}.'.format(symmetry, label, pivots, reason))
     return symmetry
+
+
+def determine_rotor_type(rotor_path):
+    """
+    Determine whether this rotor should be treated as a HinderedRotor of a FreeRotor
+    according to it's maximum peak
+    """
+    log = Log(path='')
+    log.determine_qm_software(fullpath=rotor_path)
+    energies, _ = log.software_log.loadScanEnergies()
+    max_val = max(energies)
+    return 'FreeRotor' if max_val < minimum_barrier else 'HinderedRotor'
