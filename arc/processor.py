@@ -15,8 +15,8 @@ from rmgpy.data.rmg import RMGDatabase
 
 from arc.job.inputs import input_files
 from arc import plotter
-from arc.exceptions import SchedulerError, InputError
-from arc.species import determine_rotor_symmetry
+from arc.exceptions import SchedulerError, InputError, RotorError
+from arc.species import determine_rotor_symmetry, determine_rotor_type
 
 ##################################################################
 
@@ -134,21 +134,22 @@ class Processor(object):
                 else:
                     freq_path = self.output[species.label]['freq']
                     opt_path = self.output[species.label]['freq']
-                rotors = ''
+                rotors = '\n\nrotors = ['
                 pivots_for_description = 'Pivots of considered rotors: '
                 for i in range(species.number_of_rotors):
                     if species.rotors_dict[i]['success']:
-                        if not rotors:
-                            rotors = '\n\nrotors = ['
-                        if rotors[-1] == ',':
-                            rotors += '\n'
                         rotor_path = species.rotors_dict[i]['scan_path']
+                        rotor_type = determine_rotor_type(rotor_path)
                         pivots = str(species.rotors_dict[i]['pivots'])
                         pivots_for_description += str(species.rotors_dict[i]['pivots']) + ' ,'
                         top = str(species.rotors_dict[i]['top'])
                         rotor_symmetry = determine_rotor_symmetry(rotor_path, species.label, pivots)
-                        rotors += input_files['arkane_rotor'].format(rotor_path=rotor_path, pivots=pivots, top=top,
-                                                                     symmetry=rotor_symmetry)
+                        if rotor_type == 'HinderedRotor':
+                            rotors += input_files['arkane_hindered_rotor'].format(rotor_path=rotor_path, pivots=pivots,
+                                                                              top=top, symmetry=rotor_symmetry)
+                        elif rotor_type == 'FreeRotor':
+                            rotors += input_files['arkane_free_rotor'].format(rotor_path=rotor_path, pivots=pivots,
+                                                                              top=top, symmetry=rotor_symmetry)
                         if i < species.number_of_rotors - 1:
                             rotors += ',\n          '
                 if rotors:
