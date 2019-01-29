@@ -132,6 +132,9 @@ frequencies = Log('{freq_path}')
 
 """,
 
-    'arkane_rotor':
-        """HinderedRotor(scanLog=Log('{rotor_path}'), pivots={pivots}, top={top}, symmetry={symmetry}, fit='fourier')"""
+    'arkane_hindered_rotor':
+        """HinderedRotor(scanLog=Log('{rotor_path}'), pivots={pivots}, top={top}, symmetry={symmetry}, fit='fourier')""",
+
+    'arkane_free_rotor':
+        """FreeRotor(pivots={pivots}, top={top}, symmetry={symmetry})""",
 }
