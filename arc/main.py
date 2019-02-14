@@ -37,9 +37,6 @@ class ARC(object):
     Attribute              Type       Description
     ====================== ========== ==================================================================================
     `project`              ``str``    The project's name. Used for naming the working directory.
-    'rmg_species_list'     ''list''   A list RMG Species objects. Species must have a non-empty label attributes
-                                        and are assumed to be stable wells (not TSs).
-                                        Will be converted into ARCSpecies objects
     `arc_species_list`     ``list``   A list of ARCSpecies objects (each entry should represent either a stable well,
                                         TS guesses are given in the arc_rxn_list)
     'rmg_rxn_list'         ``list``   A list of RMG Reaction objects. Will be converted into ARCReaction objects
@@ -75,11 +72,11 @@ class ARC(object):
     `level_of_theory` is a string representing either sp//geometry levels or a composite method, e.g. 'CBS-QB3',
                                                  'CCSD(T)-F12a/aug-cc-pVTZ//B3LYP/6-311++G(3df,3pd)'...
     """
-    def __init__(self, input_dict=None, project=None, rmg_species_list=None, arc_species_list=None,
-                 rmg_rxn_list=None, arc_rxn_list=None, level_of_theory='', conformer_level='', composite_method='',
-                 opt_level='', freq_level='', sp_level='', scan_level='', ts_guess_level='', fine=True,
-                 generate_conformers=True, scan_rotors=True, use_bac=True, model_chemistry='', ess_settings=None,
-                 initial_trsh=None, t_min=None, t_max=None, t_count=None, verbose=logging.INFO, project_directory=None):
+    def __init__(self, input_dict=None, project=None, arc_species_list=None, arc_rxn_list=None, level_of_theory='',
+                 conformer_level='', composite_method='', opt_level='', freq_level='', sp_level='', scan_level='',
+                 ts_guess_level='', fine=True, generate_conformers=True, scan_rotors=True, use_bac=True,
+                 model_chemistry='', ess_settings=None, initial_trsh=None, t_min=None, t_max=None, t_count=None,
+                 verbose=logging.INFO, project_directory=None):
 
         self.__version__ = '0.1'
         self.verbose = verbose
@@ -253,48 +250,60 @@ class ARC(object):
                 self.sp_level = ''
 
             self.arc_species_list = arc_species_list if arc_species_list is not None else list()
-            self.rmg_species_list = rmg_species_list if rmg_species_list is not None else list()
-            if self.rmg_species_list:
-                for rmg_spc in self.rmg_species_list:
-                    if not isinstance(rmg_spc, Species):
-                        raise InputError('All entries of rmg_species_list have to be RMG Species objects.'
-                                         ' Got: {0}'.format(type(rmg_spc)))
-                    if not rmg_spc.label:
-                        raise InputError('Missing label on RMG Species object {0}'.format(rmg_spc))
-                    arc_spc = ARCSpecies(is_ts=False, rmg_species=rmg_spc)  # assuming an RMG Species is not a TS
-                    self.arc_species_list.append(arc_spc)
+            converted_species_list = list()
+            indices_to_pop = []
+            for i, spc in enumerate(self.arc_species_list):
+                if isinstance(spc, Species):
+                    if not spc.label:
+                        raise InputError('Missing label on RMG Species object {0}'.format(spc))
+                    indices_to_pop.append(i)
+                    arc_spc = ARCSpecies(is_ts=False, rmg_species=spc)  # assuming an RMG Species is not a TS
+                    converted_species_list.append(arc_spc)
+                elif not isinstance(spc, ARCSpecies):
+                    raise ValueError('A species should either be an `ARCSpecies` object or an RMG `Species` object.'
+                                     ' Got: {0} for {1}'.format(type(spc), spc.label))
+            for i in reversed(range(len(self.arc_species_list))):  # pop from the end, so other indices won't change
+                if i in indices_to_pop:
+                    self.arc_species_list.pop(i)
+            self.arc_species_list.extend(converted_species_list)
             for arc_spc in self.arc_species_list:
-                self.unique_species_labels.append(arc_spc.label)
-            rxn_index = 0
+                if arc_spc.label not in self.unique_species_labels:
+                    self.unique_species_labels.append(arc_spc.label)
+                else:
+                    raise ValueError('Species label {0} is not unique'.format(arc_spc.label))
             self.arc_rxn_list = arc_rxn_list if arc_rxn_list is not None else list()
-            for arc_rxn in self.arc_rxn_list:
-                arc_rxn.index = rxn_index
-                rxn_index += 1
-            self.rmg_rxn_list = rmg_rxn_list if rmg_rxn_list is not None else list()
-            if self.rmg_rxn_list:
-                for rmg_rxn in self.rmg_rxn_list:
-                    if not isinstance(rmg_rxn, Reaction):
-                        raise InputError('All entries of rmg_rxn_list have to be RMG Reaction objects.'
-                                         ' Got: {0}'.format(type(rmg_rxn)))
-                    if not rmg_rxn.reactants or not rmg_rxn.products:
-                        raise InputError('Missing reactants and/or products in RMG Reaction object {0}'.format(rmg_rxn))
-                    for rmg_spc in rmg_rxn.reactants + rmg_rxn.products:
-                        if not isinstance(rmg_spc, Species):
+            converted_rxn_list = list()
+            indices_to_pop = []
+            for i, rxn in enumerate(self.arc_rxn_list):
+                if isinstance(rxn, Reaction):
+                    if not rxn.reactants or not rxn.products:
+                        raise InputError('Missing reactants and/or products in RMG Reaction object {0}'.format(rxn))
+                    indices_to_pop.append(i)
+                    arc_rxn = ARCReaction(rmg_reaction=rxn)
+                    converted_rxn_list.append(arc_rxn)
+                    for spc in rxn.reactants + rxn.products:
+                        if not isinstance(spc, Species):
                             raise InputError('All reactants and procucts of an RMG Reaction have to be RMG Species'
-                                             ' objects. Got: {0} in reaction {1}'.format(type(rmg_spc), rmg_rxn))
-                        if not rmg_spc.label:
+                                             ' objects. Got: {0} in reaction {1}'.format(type(spc), rxn))
+                        if not spc.label:
                             raise InputError('Missing label on RMG Species object {0} in reaction {1}'.format(
-                                rmg_spc, rmg_rxn))
-                    arc_rxn = ARCReaction(rmg_reaction=rmg_rxn)
-                    arc_rxn.index = rxn_index
-                    rxn_index += 1
-                    self.arc_rxn_list.append(arc_rxn)
-                    for spc in rmg_rxn.reactants + rmg_rxn.products:
+                                spc, rxn))
                         if spc.label not in self.unique_species_labels:
                             # Add species participating in an RMG Reaction to arc_species_list if not already there
                             # We assume each species has a unique label
                             self.arc_species_list.append(ARCSpecies(is_ts=False, rmg_species=spc))
                             self.unique_species_labels.append(spc.label)
+                elif not isinstance(rxn, ARCReaction):
+                    raise ValueError('A reaction should either be an `ARCReaction` object or an RMG `Reaction` object.'
+                                     ' Got: {0} for {1}'.format(type(rxn), rxn.label))
+            for i in reversed(range(len(self.arc_rxn_list))):  # pop from the end, so other indices won't change
+                if i in indices_to_pop:
+                    self.arc_rxn_list.pop(i)
+            self.arc_rxn_list.extend(converted_rxn_list)
+            rxn_index = 0
+            for arc_rxn in self.arc_rxn_list:
+                arc_rxn.index = rxn_index
+                rxn_index += 1
 
         else:
             # ARC is run from an input or a restart file.
