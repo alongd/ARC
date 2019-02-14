@@ -37,30 +37,30 @@ class ARC(object):
     Attribute              Type       Description
     ====================== ========== ==================================================================================
     `project`              ``str``    The project's name. Used for naming the working directory.
+    `project_directory`    ``str``    The path to the project directory
     `arc_species_list`     ``list``   A list of ARCSpecies objects (each entry should represent either a stable well,
                                         TS guesses are given in the arc_rxn_list)
-    'rmg_rxn_list'         ``list``   A list of RMG Reaction objects. Will be converted into ARCReaction objects
-    'arc_rxn_list'         ``list``   A list of ARCReaction objects
-    'conformer_level'      ``str``    Level of theory for conformer searches
+    'arc_rxn_list`         ``list``   A list of ARCReaction objects
+    `conformer_level`      ``str``    Level of theory for conformer searches
     `ts_guess_level`       ``str``    Level of theory for comparisons of TS guesses between different methods
-    'composite_method'     ``str``    Composite method
-    'opt_level'            ``str``    Level of theory for geometry optimization
-    'freq_level'           ``str``    Level of theory for frequency calculations
-    'sp_level'             ``str``    Level of theory for single point calculations
-    'scan_level'           ``str``    Level of theory for rotor scans
-    'output'               ``dict``   Output dictionary with status and final QM file paths for all species
+    `composite_method'     ``str``    Composite method
+    `opt_level`            ``str``    Level of theory for geometry optimization
+    `freq_level`           ``str``    Level of theory for frequency calculations
+    `sp_level`             ``str``    Level of theory for single point calculations
+    `scan_level`           ``str``    Level of theory for rotor scans
+    `output`               ``dict``   Output dictionary with status and final QM file paths for all species
                                         Only used for restarting, the actual object used is in the Scheduler class
-    'fine'                 ``bool``   Whether or not to use a fine grid for opt jobs (spawns an additional job)
-    'generate_conformers'  ``bool``   Whether or not to generate conformers when an initial geometry is given
-    'scan_rotors'          ``bool``   Whether or not to perform rotor scans
-    'use_bac'              ``bool``   Whether or not to use bond additivity corrections for thermo calculations
-    'model_chemistry'      ``list``   The model chemistry in Arkane for energy corrections (AE, BAC).
+    `fine`                 ``bool``   Whether or not to use a fine grid for opt jobs (spawns an additional job)
+    `generate_conformers`  ``bool``   Whether or not to generate conformers when an initial geometry is given
+    `scan_rotors`          ``bool``   Whether or not to perform rotor scans
+    `use_bac`              ``bool``   Whether or not to use bond additivity corrections for thermo calculations
+    `model_chemistry`      ``list``   The model chemistry in Arkane for energy corrections (AE, BAC).
                                         This can be usually determined automatically.
     `settings`             ``dict``   A dictionary of available servers and software
     `ess_settings`         ``dict``   An optional input parameter: a dictionary relating ESS to servers
     `initial_trsh`         ``dict``   Troubleshooting methods to try by default. Keys are server names, values are trshs
     't0'                   ``float``  Initial time when the project was spawned
-    'execution_time'       ``str``    Overall execution time
+    `execution_time`       ``str``    Overall execution time
     `lib_long_desc`        ``str``    A multiline description of levels of theory for the outputted RMG libraries
     `running_jobs`         ``dict``   A dictionary of jobs submitted in a precious ARC instance, used for restarting ARC
     `t_min`                ``tuple``  The minimum temperature for kinetics computations, e.g., (500, str('K'))
