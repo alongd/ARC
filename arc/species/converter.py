@@ -169,13 +169,14 @@ def elementize(atom):
         atom.atomType = atom_type[0]
 
 
-def molecules_from_xyz(xyz):
+def molecules_from_xyz(xyz, multiplicity=None):
     """
     Creating RMG:Molecule objects from xyz with correct atom labeling
     `xyz` is in a string format
     returns `s_mol` (with only single bonds) and `b_mol` (with best guesses for bond orders)
     This function is based on the MolGraph.perceive_smiles method
     Returns None for b_mol is unsuccessful to infer bond orders
+    If `multiplicity` is given, the returned species multiplicity will be set to it.
     """
     if xyz is None:
         return None, None
@@ -197,6 +198,9 @@ def molecules_from_xyz(xyz):
     if pybel_mol is not None:
         inchi = pybel_to_inchi(pybel_mol)
         mol_bo = rmg_mol_from_inchi(inchi)  # An RMG Molecule with bond orders, but without preserved atom order
+        if multiplicity is not None:
+            mol_bo.multiplicity = multiplicity
+        mol_s1_updated.multiplicity = mol_bo.multiplicity
     else:
         mol_bo = None
     order_atoms(ref_mol=mol_s1_updated, mol=mol_bo)
@@ -260,6 +264,7 @@ def update_molecule(mol, to_single_bonds=False):
             bond = Bond(atom_mapping[atom1], atom_mapping[atom2], bond_order)
             new_mol.addBond(bond)
     new_mol.updateAtomTypes()
+    new_mol.multiplicity = mol.multiplicity
     return new_mol
 
 
