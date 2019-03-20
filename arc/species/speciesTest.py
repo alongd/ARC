@@ -77,6 +77,12 @@ class TestARCSpecies(unittest.TestCase):
         H       1.84477700   -0.57224200    0.35517700""")
         cls.spc8 = ARCSpecies(label=str('HSO3'), xyz=hso3_xyz, multiplicity=2, charge=0, smiles=str('O[S](=O)=O'))
 
+        nh_s_adj = str("""1 N u0 p2 c0 {2,S}
+                          2 H u0 p0 c0 {1,S}""")
+        nh_s_xyz = str("""N       0.50949998    0.00000000    0.00000000
+                          H      -0.50949998    0.00000000    0.00000000""")
+        cls.spc9 = ARCSpecies(label=str('NH2(S)'), adjlist=nh_s_adj, xyz=nh_s_xyz, multiplicity=1, charge=0)
+
     def test_conformers(self):
         """Test conformer generation"""
         self.spc1.generate_conformers()  # vinoxy has two res. structures, each is assigned two conformers (RDkit/ob)
@@ -496,6 +502,12 @@ H      -1.69944700    0.93441600   -0.11271200"""
         res2_ids = [(a.element.symbol, a.id) if a.element.symbol != 'O' else (a.element.symbol,) for a in res2.atoms]
         self.assertEqual(mol_ids, res1_ids)
         self.assertEqual(mol_ids, res2_ids)
+
+    def test_preserving_multiplicity(self):
+        """Test that multiplicity is being preserved, especially when it is guessed differently from xyz"""
+        self.assertEqual(self.spc9.multiplicity, 1)
+        self.assertEqual(self.spc9.mol.multiplicity, 1)
+        self.assertEqual(self.spc9.mol_list[0].multiplicity, 1)
 
 
 class TestTSGuess(unittest.TestCase):
