@@ -88,6 +88,8 @@ class Job(object):
     `max_job_time`     ``int``           The maximal allowed job time on the server in hours
     `bath_gas`         ``str``           A bath gas. Currently used in OneDMin to calc L-J parameters.
                                            Allowed values are He, Ne, Ar, Kr, H2, N2, O2
+    `r_min`            ``int``           The minimum radius for OneDMin in Angstrom
+    `r_max`            ``int``           The maximum radius for OneDMin in Angstrom
     ================ =================== ===============================================================================
 
     self.job_status:
@@ -100,7 +102,7 @@ class Job(object):
                  pivots=None, memory=15000, comments='', trsh='', scan_trsh='', ess_trsh_methods=None, bath_gas=None,
                  initial_trsh=None, job_num=None, job_server_name=None, job_name=None, job_id=None, server=None,
                  initial_time=None, occ=None, max_job_time=120, scan_res=None, checkfile=None, number_of_radicals=None,
-                 testing=False):
+                 testing=False, r_min=2, r_max=5):
         self.project = project
         self.ess_settings = ess_settings
         self.initial_time = initial_time
@@ -125,6 +127,8 @@ class Job(object):
         self.scan_res = scan_res if scan_res is not None else rotor_scan_resolution
         self.max_job_time = max_job_time
         self.bath_gas = bath_gas
+        self.r_min = r_min
+        self.r_max = r_max
         self.testing = testing
         job_types = ['conformer', 'opt', 'freq', 'optfreq', 'sp', 'composite', 'scan', 'gsm', 'irc', 'ts_guess',
                      'orbitals', 'onedmin']
@@ -724,7 +728,8 @@ $end
                                                basis=self.basis_set, charge=self.charge, multiplicity=self.multiplicity,
                                                spin=self.spin, xyz=self.xyz, job_type_1=job_type_1, cpus=cpus,
                                                job_type_2=job_type_2, scan=scan_string, restricted=restricted,
-                                               fine=fine, shift=self.shift, trsh=self.trsh, scan_trsh=self.scan_trsh,)
+                                               fine=fine, shift=self.shift, trsh=self.trsh, scan_trsh=self.scan_trsh,
+                                               r_min=self.r_min, r_max=self.r_max)
             except KeyError:
                 logging.error('Could not interpret all input file keys in\n{0}'.format(self.input))
                 raise
