@@ -35,7 +35,7 @@ from arc.arc_exceptions import SpeciesError, RotorError, InputError, TSError
 from arc.settings import arc_path, default_ts_methods, valid_chars, minimum_barrier
 from arc.parser import parse_xyz_from_file, parse_dipole_moment, parse_polarizability
 from arc.species.converter import get_xyz_string, get_xyz_matrix, rdkit_conf_from_mol, standardize_xyz_string,\
-    molecules_from_xyz, rmg_mol_from_inchi, order_atoms_in_mol_list, check_isomorphism
+    molecules_from_xyz, rmg_mol_from_inchi, order_atoms_in_mol_list, check_isomorphism, center_xyz
 from arc.ts import atst
 
 ##################################################################
@@ -936,6 +936,63 @@ class ARCSpecies(object):
             rotrelaxcollnum=2,  # rotational relaxation collision number at 298 K
             comment=str(comment)
         )
+
+    def determine_radius(self):
+        """Determine the largest distance from the coordinate system origin attributed to one of the molecule's
+        atoms in 3D space.
+
+        Returns:
+            float: The species radius.
+        """
+        # atom vdW radius in Angstrom is taken from https://en.wikipedia.org/wiki/Van_der_Waals_radius
+        atom_vdw_radius = {'H': 1.10, 'He': 1.40,
+                           'Li': 1.82, 'Be': 1.53, 'B': 1.92, 'C': 1.70, 'N': 1.55, 'O': 1.52, 'F': 1.47, 'Ne': 1.54,
+                           'Na': 2.27, 'Mg': 1.73, 'Al': 1.84, 'Si': 2.10, 'P': 1.80, 'S': 1.80, 'Cl': 1.75, 'Ar': 1.88,
+                           'K': 2.75, 'Ca': 2.31, 'Ni': 1.63, 'Cu': 1.40, 'Zn': 1.39, 'Ga': 1.87, 'Ge': 2.11,
+                           'As': 1.85, 'Se': 1.90, 'Br': 1.85, 'Kr': 202,
+                           'Rb': 3.03, 'Sr': 2.49, 'Pd': 1.63, 'Ag': 1.72, 'Cd': 1.58, 'In': 1.93, 'Sn': 2.17,
+                           'Sb': 2.06, 'Te': 2.06, 'I': 1.98, 'Xe': 2.16,
+                           'Cs': 3.43, 'Ba': 2.68, 'Pt': 1.75, 'Au': 1.66, 'Hg': 1.55, 'Tl': 1.96, 'Pb': 2.02,
+                           'Bi': 2.07, 'Po': 1.97, 'At': 2.02, 'Rn': 2.20, 'Fr': 3.48, 'Ra': 2.83}
+        conf = self.conformers[0] if self.conformers else None
+        xyz = center_xyz(self.final_xyz or self.initial_xyz or conf)
+        if xyz is None:
+            raise SpeciesError('Could not determine species {0} radius without xyz'.format(self.label))
+        _, symbols, x, y, z = get_xyz_matrix(xyz)
+        border_elements = list()  # a list of the farthest element/s
+        r, atom_r = 0, 0
+        for si, xi, yi, zi in zip(symbols, x, y, z):
+            ri = xi ** 2 + yi ** 2 + zi ** 2
+            if ri == r:
+                border_elements.append(si)
+            elif ri > r:
+                r = ri
+                border_elements = [si]
+        atom_r = max([atom_vdw_radius[si] if si in atom_vdw_radius else 2 for si in border_elements]) * 0.5
+        radius = r ** 0.5 + atom_r
+        logging.debug('Using a radius of {0} to represent species {1} in a OneDMin calculation'.format(
+            radius, self.label))
+        return radius
+
+    def determine_onedmin_radii(self, bath_gas):
+        """Determine r_min and r_max for the OneDMin scan. Assumes that the species' shape is close to a sphere.
+
+        Args:
+            bath_gas (str, unicode): The collider bath gas.
+
+        Returns:
+            tuple: The minimal and maximal radii for the OneDMin calculation.
+        """
+        if bath_gas not in ['He', 'Ne', 'Ar', 'Kr', 'H2', 'N2', 'O2']:
+            raise SpeciesError('Unknown bath gas. Should be either He, Ne, Ar, Kr, H2, N2, or O2, '
+                               'got {0}'.format(bath_gas))
+        bath_gas_radii_dict = {'He': 1.40, 'Ne': 1.54, 'Ar': 1.88, 'Kr': 2.0,
+                               'H2': 1.70, 'N2': 1.95, 'O2': 1.88}  # in Angstrom
+        bath_gas_r = bath_gas_radii_dict[bath_gas]
+        species_radius = self.determine_radius()
+        r_min = species_radius + bath_gas_r + 0.2
+        r_max = r_min + 3
+        return round(r_min, 2), round(r_max, 2)
 
 
 class TSGuess(object):
