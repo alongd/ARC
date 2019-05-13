@@ -439,3 +439,30 @@ def check_isomorphism(mol1, mol2, filter_structures=True):
     spc2 = Species(molecule=[mol2_copy])
     spc2.generate_resonance_structures(keep_isomorphic=False, filter_structures=filter_structures)
     return spc1.isIsomorphic(spc2)
+
+
+def center_xyz(xyz, symbols=None):
+    """
+    Returns the xyz where the center of the geometry (ignoring atomic numbers) is at the axes origin
+    `xyz` is either a string or array format
+    """
+    if isinstance(xyz, (str, unicode)):
+        xyz, symbols, _, _, _ = get_xyz_matrix(xyz)
+    elif isinstance(xyz, list):
+        if symbols is None:
+            raise InputError('If xyz is in an array format, symbols must be given as well.')
+    else:
+        raise InputError('xyz in center_xyz() must be either a string or a lost format,'
+                         'got {0}\n which is a {1}'.format(xyz, type(xyz)))
+    r = [0, 0, 0]  # The average atom displacement from the origin
+    for x, y, z in xyz:
+        r[0] += x
+        r[1] += y
+        r[2] += z
+    r[0] /= len(xyz)
+    r[1] /= len(xyz)
+    r[2] /= len(xyz)
+    new_xyz = list()
+    for x, y, z in xyz:
+        new_xyz.append([x - r[0], y - r[1], z - r[2]])
+    return standardize_xyz_string(get_xyz_string(coord=new_xyz, symbol=symbols))
