@@ -11,7 +11,6 @@ import numpy as np
 import datetime
 
 from rdkit import Chem
-from rdkit.Chem import rdMolTransforms as rdMT
 from rdkit.Chem.rdchem import EditableMol as RDMol
 import openbabel as ob
 import pybel as pyb
@@ -35,7 +34,8 @@ from arc.arc_exceptions import SpeciesError, RotorError, InputError, TSError
 from arc.settings import arc_path, default_ts_methods, valid_chars, minimum_barrier
 from arc.parser import parse_xyz_from_file, parse_dipole_moment, parse_polarizability
 from arc.species.converter import get_xyz_string, get_xyz_matrix, rdkit_conf_from_mol, standardize_xyz_string,\
-    molecules_from_xyz, rmg_mol_from_inchi, order_atoms_in_mol_list, check_isomorphism
+    molecules_from_xyz, rmg_mol_from_inchi, order_atoms_in_mol_list, check_isomorphism, set_rdkit_dihedrals
+from arc.species import conformers
 from arc.ts import atst
 
 ##################################################################
@@ -636,7 +636,7 @@ class ARCSpecies(object):
             else:
                 mol_list = [self.mol]
             for mol in mol_list:
-                rotors = find_internal_rotors(mol)
+                rotors = conformers.find_internal_rotors(mol)
                 for new_rotor in rotors:
                     for existing_rotor in self.rotors_dict.values():
                         if existing_rotor['pivots'] == new_rotor['pivots']:
@@ -652,12 +652,11 @@ class ARCSpecies(object):
                 logger.info('Pivot list(s) for {0}: {1}\n'.format(
                     self.label, [self.rotors_dict[i]['pivots'] for i in range(self.number_of_rotors)]))
 
-    def set_dihedral(self, scan, pivots, deg_increment):
+    def set_dihedral(self, pivots, scan, deg_increment):
         """
         Generated an RDKit molecule object from the given self.final_xyz.
         Increments the current dihedral angle between atoms i, j, k, l in the `scan` list by 'deg_increment` in degrees.
         All bonded atoms are moved accordingly. The result is saved in self.initial_xyz.
-        `pivots` is used to identify the rotor.
         """
         if deg_increment == 0:
             logger.warning('set_dihedral was called with zero increment for {label} with pivots {pivots}'
@@ -676,21 +675,12 @@ class ARCSpecies(object):
                 for i, rotor in self.rotors_dict.items():
                     logger.error('Rotor {i} with pivots {pivots} was set {times} times'.format(
                         i=i, pivots=rotor['pivots'], times=rotor['times_dihedral_set']))
-                raise RotorError('Rotors for {0} were set beyond the maximal number of times without converging')
-            for i, _ in enumerate(scan):
-                scan[i] -= 1  # atom indices start from 0, but atom labels (as in scan) start from 1
+                raise RotorError('Rotors were set beyond the maximal number of times without converging')
             coordinates, atoms, _, _, _ = get_xyz_matrix(self.final_xyz)
             mol = molecules_from_xyz(self.final_xyz, multiplicity=self.multiplicity, charge=self.charge)[1]
             conf, rd_mol, indx_map = rdkit_conf_from_mol(mol, coordinates)
-            rd_scan = [indx_map[scan[i]] for i in range(4)]  # convert the atom indices in `scan` to RDkit indices
-
-            deg0 = rdMT.GetDihedralDeg(conf, rd_scan[0], rd_scan[1], rd_scan[2], rd_scan[3])  # get original dihedral
-            deg = deg0 + deg_increment
-            rdMT.SetDihedralDeg(conf, rd_scan[0], rd_scan[1], rd_scan[2], rd_scan[3], deg)
-            new_xyz = list()
-            for i in range(rd_mol.GetNumAtoms()):
-                new_xyz.append([conf.GetAtomPosition(indx_map[i]).x, conf.GetAtomPosition(indx_map[i]).y,
-                                conf.GetAtomPosition(indx_map[i]).z])
+            rd_scan = [indx_map[i - 1] for i in scan]  # convert the atom indices in `scan` to RDKit indices
+            new_xyz = set_rdkit_dihedrals(conf, rd_mol, indx_map, rd_scan, deg_increment=deg_increment)
             self.initial_xyz = get_xyz_string(new_xyz, symbol=atoms)
 
     def determine_symmetry(self):
@@ -1150,191 +1140,6 @@ class TSGuess(object):
             if os.path.isfile(xyz):
                 xyz = parse_xyz_from_file(xyz)
             self.xyz = standardize_xyz_string(xyz)
-
-
-def _get_possible_conformers_rdkit(mol):
-    """
-    A helper function for conformer search
-    Uses rdkit to automatically generate a set of len(mol.atoms)-3)*30 initial geometries, optimizes
-    these geometries using MMFF94s, calculates the energies using MMFF94s
-    and converts them back in terms of the RMG atom ordering
-    Returns the coordinates and energies
-    """
-    if not isinstance(mol, (Molecule, RDMol)):
-        raise SpeciesError('Can generate conformers to either an RDKit or RMG molecule. Got {0}'.format(type(mol)))
-    rd_indx_map = dict()
-    if isinstance(mol, RDMol):
-        rd_mol = mol
-    else:
-        rd_mol, rd_inds = mol.toRDKitMol(removeHs=False, returnMapping=True)
-
-        for k, atom in enumerate(mol.atoms):
-            ind = rd_inds[atom]
-            rd_indx_map[ind] = k
-    if len(mol.atoms) > 50:
-        Chem.AllChem.EmbedMultipleConfs(rd_mol, numConfs=500, randomSeed=1)
-    elif len(mol.atoms) > 5:
-        Chem.AllChem.EmbedMultipleConfs(rd_mol, numConfs=len(mol.atoms) * 3, randomSeed=1)
-    else:
-        Chem.AllChem.EmbedMultipleConfs(rd_mol, numConfs=50, randomSeed=1)
-    energies = []
-    xyzs = []
-    for i in range(rd_mol.GetNumConformers()):
-        v = 1
-        while v == 1:
-            v = Chem.AllChem.MMFFOptimizeMolecule(rd_mol, mmffVariant=str('MMFF94s'), confId=i,
-                                                  maxIters=500, ignoreInterfragInteractions=False)
-        mp = Chem.AllChem.MMFFGetMoleculeProperties(rd_mol, mmffVariant=str('MMFF94s'))
-        if mp is not None:
-            ff = Chem.AllChem.MMFFGetMoleculeForceField(rd_mol, mp, confId=i)
-            energies.append(ff.CalcEnergy())
-            cf = rd_mol.GetConformer(i)
-            xyz = []
-            for j in range(cf.GetNumAtoms()):
-                pt = cf.GetAtomPosition(j)
-                xyz.append([pt.x, pt.y, pt.z])
-            if isinstance(mol, Molecule):
-                xyz = [xyz[rd_indx_map[j]] for j, _ in enumerate(xyz)]  # reorder
-            xyzs.append(xyz)
-    return xyzs, energies
-
-
-def _get_possible_conformers_openbabel(mol):
-    """
-    A helper function for conformer search
-    Uses OpenBabel to automatically generate set of len(mol.atoms)*10-3 initial geometries,
-    optimizes these geometries using MMFF94s, calculates the energies using MMFF94s
-    Returns the coordinates and energies
-    """
-    energies = []
-    xyzs = []
-    obmol, _ = toOBMol(mol, returnMapping=True)
-    pybmol = pyb.Molecule(obmol)
-    pybmol.make3D()
-    obmol = pybmol.OBMol
-
-    ff = ob.OBForceField.FindForceField("mmff94s")
-    ff.Setup(obmol)
-    if len(mol.atoms) > 50:
-        ff.WeightedRotorSearch(500, 2000)
-    elif len(mol.atoms) > 5:
-        ff.WeightedRotorSearch(len(mol.atoms) * 10 - 3, 2000)
-    else:
-        ff.WeightedRotorSearch(50, 2000)
-    ff.GetConformers(obmol)
-    for n in range(obmol.NumConformers()):
-        xyz = []
-        obmol.SetConformer(n)
-        ff.Setup(obmol)
-        # ff.ConjugateGradientsTakeNSteps(1000)
-        energies.append(ff.Energy())
-        for atm in pybmol.atoms:
-            xyz.append(list(atm.coords))
-        xyzs.append(xyz)
-    return xyzs, energies
-
-
-def get_min_energy_conformer(xyzs, energies):
-    """Get the minimum energy for conformers"""
-    minval = min(energies)
-    minind = energies.index(minval)
-    return xyzs[minind]
-
-
-def find_internal_rotors(mol):
-    """
-    Locates the sets of indices corresponding to every internal rotor.
-    Returns for each rotors the gaussian scan coordinates, the pivots and the top.
-    """
-    rotors = []
-    for atom1 in mol.vertices:
-        if atom1.isNonHydrogen():
-            for atom2, bond in atom1.edges.items():
-                if atom2.isNonHydrogen() and mol.vertices.index(atom1) < mol.vertices.index(atom2) \
-                        and (bond.isSingle() or bond.isHydrogenBond()) and not mol.isBondInCycle(bond):
-                    if len(atom1.edges) > 1 and len(atom2.edges) > 1:  # none of the pivotal atoms are terminal
-                        rotor = dict()
-                        # pivots:
-                        rotor['pivots'] = [mol.vertices.index(atom1) + 1, mol.vertices.index(atom2) + 1]
-                        # top:
-                        top1, top2 = [], []
-                        top1_has_heavy_atoms, top2_has_heavy_atoms = False, False
-                        explored_atom_list = [atom2]
-                        atom_list_to_explore = [atom1]
-                        while len(atom_list_to_explore):
-                            for atom in atom_list_to_explore:
-                                top1.append(mol.vertices.index(atom) + 1)
-                                for atom3, _ in atom.edges.items():
-                                    if atom3.isHydrogen():
-                                        # append H w/o further exploring
-                                        top1.append(mol.vertices.index(atom3) + 1)
-                                    elif atom3 not in explored_atom_list:
-                                        top1_has_heavy_atoms = True
-                                        atom_list_to_explore.append(atom3)  # explore it further
-                                atom_list_to_explore.pop(atom_list_to_explore.index(atom))
-                                explored_atom_list.append(atom)  # mark as explored
-                        explored_atom_list, atom_list_to_explore = [atom1, atom2], [atom2]
-                        while len(atom_list_to_explore):
-                            for atom in atom_list_to_explore:
-                                top2.append(mol.vertices.index(atom) + 1)
-                                for atom3, _ in atom.edges.items():
-                                    if atom3.isHydrogen():
-                                        # append H w/o further exploring
-                                        top2.append(mol.vertices.index(atom3) + 1)
-                                    elif atom3 not in explored_atom_list:
-                                        top2_has_heavy_atoms = True
-                                        atom_list_to_explore.append(atom3)  # explore it further
-                                atom_list_to_explore.pop(atom_list_to_explore.index(atom))
-                                explored_atom_list.append(atom)  # mark as explored
-                        if top1_has_heavy_atoms and not top2_has_heavy_atoms:
-                            rotor['top'] = top2
-                        elif top2_has_heavy_atoms and not top1_has_heavy_atoms:
-                            rotor['top'] = top1
-                        else:
-                            rotor['top'] = top1 if len(top1) <= len(top2) else top2
-                        # scan:
-                        rotor['scan'] = []
-                        heavy_atoms = []
-                        hydrogens = []
-                        for atom3, _ in atom1.edges.items():
-                            if atom3.isHydrogen():
-                                hydrogens.append(mol.vertices.index(atom3))
-                            elif atom3 is not atom2:
-                                heavy_atoms.append(mol.vertices.index(atom3))
-                        smallest_index = len(mol.vertices)
-                        if len(heavy_atoms):
-                            for i in heavy_atoms:
-                                if i < smallest_index:
-                                    smallest_index = i
-                        else:
-                            for i in hydrogens:
-                                if i < smallest_index:
-                                    smallest_index = i
-                        rotor['scan'].append(smallest_index + 1)
-                        rotor['scan'].extend([mol.vertices.index(atom1) + 1, mol.vertices.index(atom2) + 1])
-                        heavy_atoms = []
-                        hydrogens = []
-                        for atom3, _ in atom2.edges.items():
-                            if atom3.isHydrogen():
-                                hydrogens.append(mol.vertices.index(atom3))
-                            elif atom3 is not atom1:
-                                heavy_atoms.append(mol.vertices.index(atom3))
-                        smallest_index = len(mol.vertices)
-                        if len(heavy_atoms):
-                            for i in heavy_atoms:
-                                if i < smallest_index:
-                                    smallest_index = i
-                        else:
-                            for i in hydrogens:
-                                if i < smallest_index:
-                                    smallest_index = i
-                        rotor['scan'].append(smallest_index + 1)
-                        rotor['success'] = None
-                        rotor['invalidation_reason'] = ''
-                        rotor['times_dihedral_set'] = 0
-                        rotor['scan_path'] = ''
-                        rotors.append(rotor)
-    return rotors
 
 
 def determine_occ(label, xyz, charge):
