@@ -15,8 +15,7 @@ from rmgpy.species import Species
 from rmgpy.reaction import Reaction
 from rmgpy.transport import TransportData
 
-from arc.species.species import ARCSpecies, TSGuess, get_min_energy_conformer,\
-    determine_rotor_type, determine_rotor_symmetry
+from arc.species.species import ARCSpecies, TSGuess, determine_rotor_type, determine_rotor_symmetry
 from arc.species.converter import get_xyz_string, get_xyz_matrix, molecules_from_xyz
 from arc.settings import arc_path, default_levels_of_theory
 from arc.rmgdb import make_rmg_database_object
@@ -471,13 +470,6 @@ H      -1.69944700    0.93441600   -0.11271200"""
         self.assertIsNone(spc4.conformer_energies[2])
         self.assertIsNotNone(spc4.conformer_energies[3])
         self.assertEqual(spc4.multiplicity, 2)
-
-    def test_get_min_energy_conformer(self):
-        """Test that the xyz with the minimum specified energy is returned from get_min_energy_conformer()"""
-        xyzs = ['xyz1', 'xyz2', 'xyz3']
-        energies = [-5, -30, -1.5]
-        min_xyz = get_min_energy_conformer(xyzs, energies)
-        self.assertEqual(min_xyz, 'xyz2')
 
     def test_mol_from_xyz_atom_id_1(self):
         """Test that atom ids are saved properly when loading both xyz and smiles."""
