@@ -542,7 +542,8 @@ class Scheduler(object):
         species = self.species_dict[label]
         memory = memory if memory is not None else self.memory
         checkfile = self.species_dict[label].checkfile  # defaults to None
-        if self.species_dict[label].most_stable_conformer is not None and job_type in ['opt', 'composite', 'optfreq']:
+        if self.species_dict[label].most_stable_conformer is not None and job_type in ['opt', 'composite', 'optfreq'] \
+                and self.species_dict[label].conformer_checkfiles:
             checkfile = self.species_dict[label].conformer_checkfiles[self.species_dict[label].most_stable_conformer]
         if self.adaptive_levels is not None:
             level_of_theory = self.determine_adaptive_level(original_level_of_theory=level_of_theory, job_type=job_type,
@@ -618,6 +619,7 @@ class Scheduler(object):
         The resulting conformer is saved in a <xyz matrix with element labels> format
         in self.species_dict[species.label]['initial_xyz']
         """
+        logging.info('\nStarting (non-TS) species conformational analysis...\n')
         for label in self.unique_species_labels:
             if not self.species_dict[label].is_ts and 'opt converged' not in self.output[label]['status'] \
                     and 'opt' not in self.job_dict[label] and 'composite' not in self.job_dict[label] \
@@ -1268,8 +1270,8 @@ class Scheduler(object):
                                         min_v = v
                                         min_index = j
                                 self.species_dict[label].set_dihedral(
-                                    scan=self.species_dict[label].rotors_dict[i]['scan'],
                                     pivots=self.species_dict[label].rotors_dict[i]['pivots'],
+                                    scan=self.species_dict[label].rotors_dict[i]['scan'],
                                     deg_increment=min_index*rotor_scan_resolution)
                                 self.delete_all_species_jobs(label)
                                 self.run_opt_job(label)  # run opt on new initial_xyz with the desired dihedral
