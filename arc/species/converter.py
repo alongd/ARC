@@ -168,8 +168,8 @@ def rmg_mol_from_inchi(inchi):
     try:
         rmg_mol = Molecule().fromInChI(str(inchi))
     except (AtomTypeError, ValueError) as e:
-        logger.warning('Got the following Error when trying to create an RMG Molecule object from '
-                       'InChI:\n{0}'.format(e.message))
+        logger.warning('Got the following Error when trying to create an RMG Molecule object from InChI:'
+                       '\n{0}'.format(e.message))
         return None
     return rmg_mol
 
