@@ -552,13 +552,15 @@ class ARCSpecies(object):
         """
         if not self.is_ts:
             if not self.charge:
-                for mol in self.mol_list:
-                    self.find_conformers(mol)
+                mol_list = self.mol_list
             else:
-                self.find_conformers(self.mol)
-            for xyz in self.xyzs:
-                self.conformers.append(xyz)
-                self.conformer_energies.append(None)  # a placeholder (lists are synced)
+                mol_list = [self.mol]
+            lowest_confs, confs = conformers.generate_conformers(mol_list=mol_list, xyzs=self.xyzs, label=self.label,
+                                                                 charge=self.charge, multiplicity=self.multiplicity,
+                                                                 force_field=self.force_field)
+            # Todo: save YAMLs
+            self.conformers.extend([conf['xyz'] for conf in lowest_confs])
+            self.conformer_energies = [None] * len(lowest_confs)
         else:
             # generate "conformers" from the results of the different TS guess methods, if successful
             tsg_index = 0
@@ -601,36 +603,36 @@ class ARCSpecies(object):
                 logger.error('No TS methods for {0} have converged!'.format(self.label))
             logger.info('\n')
 
-    def find_conformers(self, mol, method='all'):
-        """
-        Generates conformers for `mol` which is an ``RMG.Molecule`` object using the method/s
-        specified in `method`: 'rdkit', 'openbabel', or 'all'. result/s saved to self.xyzs
-        """
-        rdkit, opnbbl = False, False
-        rd_xyzs, ob_xyzs = list(), list()
-        if method == 'all':
-            rdkit = True
-            opnbbl = True
-        elif method.lower() in ['rdkit', 'rdk']:
-            rdkit = True
-        elif method.lower() in ['ob', 'openbabel', 'opnbbl']:
-            opnbbl = True
-        if rdkit:
-            rd_xyzs, rd_energies = list(), list()
-            try:
-                rd_xyzs, rd_energies = _get_possible_conformers_rdkit(mol)
-            except ValueError as e:
-                logger.warning('Could not generate RDkit conformers for {0}, failed with: {1}'.format(
-                    self.label, e.message))
-            if rd_xyzs:
-                rd_xyz = get_min_energy_conformer(xyzs=rd_xyzs, energies=rd_energies)
-                self.xyzs.append(get_xyz_string(coord=rd_xyz, mol=mol))
-        if opnbbl:
-            ob_xyzs, ob_energies = _get_possible_conformers_openbabel(mol)
-            ob_xyz = get_min_energy_conformer(xyzs=ob_xyzs, energies=ob_energies)
-            self.xyzs.append(get_xyz_string(coord=ob_xyz, mol=mol))
-        logger.debug('Considering {actual} conformers for {label} out of {total} total ran using a force field'.format(
-            actual=len(self.xyzs), total=len(rd_xyzs+ob_xyzs), label=self.label))
+    # def find_conformers(self, mol, method='all'):
+    #     """
+    #     Generates conformers for `mol` which is an ``RMG.Molecule`` object using the method/s
+    #     specified in `method`: 'rdkit', 'openbabel', or 'all'. result/s saved to self.xyzs
+    #     """
+    #     rdkit, opnbbl = False, False
+    #     rd_xyzs, ob_xyzs = list(), list()
+    #     if method == 'all':
+    #         rdkit = True
+    #         opnbbl = True
+    #     elif method.lower() in ['rdkit', 'rdk']:
+    #         rdkit = True
+    #     elif method.lower() in ['ob', 'openbabel', 'opnbbl']:
+    #         opnbbl = True
+    #     if rdkit:
+    #         rd_xyzs, rd_energies = list(), list()
+    #         try:
+    #             rd_xyzs, rd_energies = _get_possible_conformers_rdkit(mol)
+    #         except ValueError as e:
+    #             logger.warning('Could not generate RDkit conformers for {0}, failed with: {1}'.format(
+    #                 self.label, e.message))
+    #         if rd_xyzs:
+    #             rd_xyz = get_min_energy_conformer(xyzs=rd_xyzs, energies=rd_energies)
+    #             self.xyzs.append(get_xyz_string(coord=rd_xyz, mol=mol))
+    #     if opnbbl:
+    #         ob_xyzs, ob_energies = _get_possible_conformers_openbabel(mol)
+    #         ob_xyz = get_min_energy_conformer(xyzs=ob_xyzs, energies=ob_energies)
+    #         self.xyzs.append(get_xyz_string(coord=ob_xyz, mol=mol))
+    #     logger.debug('Considering {actual} conformers for {label} out of {total} total ran using a force field'.format(
+    #         actual=len(self.xyzs), total=len(rd_xyzs+ob_xyzs), label=self.label))
 
     def determine_rotors(self):
         """
