@@ -106,6 +106,12 @@ class ARCSpecies(object):
     `optical_isomers`       ``int``      Whether (=2) or not (=1) the species has chiral center/s
     `transport_data`        ``TransportData``  A placeholder for updating transport properties after Lennard-Jones
                                                  calculation (using OneDMin)
+    `force_field`           ``str```     The force field to be used for conformer screening. The default is MMFF94.
+                                           Other optional force fields are MMFF94s, UFF, or GAFF (not recommended, slow)
+                                           If 'fit' is specified for this parameter, some initial MMFF94 conformers will
+                                           be generated, then a force field parameters will be fitted for this molecule
+                                           and conformers will be re-run with the fitted force field (recommended for
+                                           drug-like species and species with many heteroatoms).
     ====================== ============= ===============================================================================
 
     Dictionary structure:
@@ -125,7 +131,7 @@ class ARCSpecies(object):
     def __init__(self, is_ts=False, rmg_species=None, mol=None, label=None, xyz=None, multiplicity=None, charge=None,
                  smiles='', adjlist='', inchi='', bond_corrections=None, generate_thermo=True, species_dict=None,
                  yml_path=None, ts_methods=None, ts_number=None, rxn_label=None, external_symmetry=None,
-                 optical_isomers=None, run_time=None, checkfile=None, number_of_radicals=None):
+                 optical_isomers=None, run_time=None, checkfile=None, number_of_radicals=None, force_field='MMFF94'):
         self.t1 = None
         self.ts_number = ts_number
         self.conformers = list()
@@ -155,6 +161,7 @@ class ARCSpecies(object):
             self.from_dict(species_dict=species_dict)
         else:
             # Not reading from a dictionary
+            self.force_field = force_field
             self.is_ts = is_ts
             self.ts_conf_spawned = False
             self.e_elect = None
@@ -332,6 +339,7 @@ class ARCSpecies(object):
     def as_dict(self):
         """A helper function for dumping this object as a dictionary in a YAML file for restarting ARC"""
         species_dict = dict()
+        species_dict['force_field'] = self.force_field
         species_dict['is_ts'] = self.is_ts
         species_dict['E0'] = self.e_elect
         species_dict['arkane_file'] = self.arkane_file
@@ -390,6 +398,7 @@ class ARCSpecies(object):
         except KeyError:
             raise InputError('All species must have a label')
         self.run_time = datetime.timedelta(seconds=species_dict['run_time']) if 'run_time' in species_dict else None
+        self.force_field = species_dict['force_field'] if 'force_field' in species_dict else 'MMFF94'
         self.t1 = species_dict['t1'] if 't1' in species_dict else None
         self.e_elect = species_dict['E electronic'] if 'E electronic' in species_dict else None
         self.arkane_file = species_dict['arkane_file'] if 'arkane_file' in species_dict else None
