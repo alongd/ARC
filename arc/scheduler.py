@@ -122,7 +122,8 @@ class Scheduler(object):
     def __init__(self, project, ess_settings, species_list, project_directory, composite_method='', conformer_level='',
                  opt_level='', freq_level='', sp_level='', scan_level='', ts_guess_level='', orbitals_level='',
                  adaptive_levels=None, rmgdatabase=None, job_types=None, initial_trsh=None, rxn_list=None, bath_gas=None,
-                 restart_dict=None, max_job_time=120, allow_nonisomorphic_2d=False, memory=14, testing=False):
+                 restart_dict=None, max_job_time=120, allow_nonisomorphic_2d=False, memory=14, testing=False,
+                 dont_gen_confs=None):
         self.rmgdb = rmgdatabase
         self.restart_dict = restart_dict
         self.species_list = species_list
@@ -139,7 +140,7 @@ class Scheduler(object):
         self.memory = memory
         self.bath_gas = bath_gas
         self.adaptive_levels = adaptive_levels
-        self.dont_gen_confs = list()
+        self.dont_gen_confs = dont_gen_confs or list()
         if self.restart_dict is not None:
             self.output = self.restart_dict['output']
             if 'running_jobs' in self.restart_dict:
@@ -331,11 +332,8 @@ class Scheduler(object):
                         if self.job_types['1d_rotors']:
                             # restart-related checks are performed in run_scan_jobs()
                             self.run_scan_jobs(species.label)
-                elif not self.species_dict[species.label].is_ts and self.job_types['conformers']\
-                        and 'geo' not in self.output[species.label]:
-                    self.species_dict[species.label].generate_conformers()
             else:
-                # Species is loaded from a YAML file
+                # Species is loaded from an Arkane YAML file (not need to execute any job)
                 self.output[species.label]['status'] = 'ALL converged'
                 if species.is_ts:
                     # This is a TS loaded from a YAML file
@@ -501,6 +499,35 @@ class Scheduler(object):
                                     opt_path=self.output[label]['geo'], bath_gas=job.bath_gas, opt_level=self.opt_level)
                         self.timer = False
                         break
+                    elif 'ff_param_fit' in job_name\
+                            and not self.job_dict[label]['ff_param_fit'][job_name].job_id in self.servers_jobs_ids:
+                        job = self.job_dict[label]['ff_param_fit'][job_name]
+                        successful_server_termination = self.end_job(job=job, label=label, job_name=job_name)
+                        mmff94_fallback = False
+                        if successful_server_termination and job.job_status[1] == 'done':
+                            # copy the fitting file to the species output folder
+                            ff_param_fit_path = os.path.join(self.project_directory, 'output',
+                                                             'Species', label, 'ff_param_fit')
+                            if not os.path.isdir(ff_param_fit_path):
+                                os.makedirs(ff_param_fit_path)
+                            ff_param_fit_path = os.path.join(ff_param_fit_path, 'gaussian.out')
+                            if os.path.isfile(job.local_path_to_output_file):
+                                shutil.copyfile(job.local_path_to_output_file, ff_param_fit_path)
+                                self.output[label]['status'] += 'ff_param_fit converged; '
+                                # TODO: continue processing! Geoff's email
+                                # Todo: populate species.most_stable_conformer
+                            else:
+                                mmff94_fallback = True
+                        else:
+                            mmff94_fallback = True
+                        if mmff94_fallback:
+                            logger.error('Basis set fitting job in Gaussian failed. Generating standard MMFF94 '
+                                         'conformers instead of fitting a force field for species {0} althogh its'
+                                         ' .force_field attribute was set to "fit".'.format(label))
+                            self.species_dict[label].force_field = 'MMFF94'
+                            self.species_dict[label].generate_conformers()  # Todo: remove
+                        self.timer = False
+                        break
 
                 if self.species_dict[label].is_ts and not self.species_dict[label].ts_conf_spawned\
                         and not any([tsg.success is None for tsg in self.species_dict[label].ts_guesses]):
@@ -599,7 +626,7 @@ class Scheduler(object):
             self.timer = False
             job.write_completed_job_to_csv_file()
             logger.info('  Ending job {name} for {label} (run time: {time})'.format(name=job.job_name, label=label,
-                                                                                     time=job.run_time))
+                                                                                    time=job.run_time))
             if job.job_status[0] != 'done':
                 return False
             self.save_restart_dict()
@@ -615,17 +642,35 @@ class Scheduler(object):
 
     def run_conformer_jobs(self):
         """
-        Select the most stable conformer for each species by spawning opt jobs at the conformer level of theory.
-        The resulting conformer is saved in a <xyz matrix with element labels> format
-        in self.species_dict[species.label]['initial_xyz']
+        Select the most stable conformer for each species using molecular dynamics (force fields) and subsequently
+        spawning opt jobs at the conformer level of theory, usually a reasonable yet cheap DFT, e.g., b97d3/6-31+g(d,p).
+        The resulting conformer is saved in a string format xyz in the Species initial_xyz attribute.
         """
-        logging.info('\nStarting (non-TS) species conformational analysis...\n')
+        logger.info('\nStarting (non-TS) species conformational analysis...\n')
         for label in self.unique_species_labels:
             if not self.species_dict[label].is_ts and 'opt converged' not in self.output[label]['status'] \
                     and 'opt' not in self.job_dict[label] and 'composite' not in self.job_dict[label] \
                     and all([e is None for e in self.species_dict[label].conformer_energies]) \
-                    and self.species_dict[label].number_of_atoms > 1 and label not in self.dont_gen_confs:
+                    and self.species_dict[label].number_of_atoms > 1 and label not in self.dont_gen_confs\
+                    and 'geo' not in self.output[label]\
+                    and (self.job_types['conformers'] or (not self.job_types['conformers']
+                                                          and self.species_dict[label].initial_xyz is None
+                                                          and self.species_dict[label].final_xyz is None
+                                                          and not self.species_dict[label].conformers)):
                 # This is not a TS, opt (/composite) did not converged nor running, and conformer energies were not set
+                # (and it's not in self.dont_gen_confs). Also, either 'conformers' are set to True in job_types,
+                # or they are set to False but the species has no 3D information. Generate conformers.
+                if self.species_dict[label].force_field == 'fit':
+                    # first run a Gaussian blyp/svp/svpfit job for force field parameters fitting
+                    if self.species_dict[label].cheap_conformer is None:
+                        self.species_dict[label].get_cheap_conformer()
+                    self.run_force_field_fit_job(label)
+                else:
+                    self.species_dict[label].generate_conformers()
+
+
+                # Todo: do the below for a ff_param_fit job? relocate to check_conformers?
+
                 self.save_conformers_file(label)
                 if self.species_dict[label].initial_xyz is None and self.species_dict[label].final_xyz is None \
                         and not self.testing:
@@ -634,7 +679,9 @@ class Scheduler(object):
                         for i, xyz in enumerate(self.species_dict[label].conformers):
                             self.run_job(label=label, xyz=xyz, level_of_theory=self.conformer_level,
                                          job_type='conformer', conformer=i)
-                    elif len(self.species_dict[label].conformers) == 1:
+                    elif len(self.species_dict[label].conformers) == 1\
+                            and not any(['ff_param_fit' in running_job for running_job in self.running_jobs[label]])\
+                            and not any(['gromacs' in running_job for running_job in self.running_jobs[label]]):
                         logger.info('Only one conformer is available for species {0}, '
                                     'using it as initial xyz'.format(label))
                         self.species_dict[label].initial_xyz = self.species_dict[label].conformers[0]
@@ -806,6 +853,21 @@ class Scheduler(object):
         elif 'onedmin' not in self.job_dict[label]:
             self.run_job(label=label, xyz=self.species_dict[label].final_xyz, job_type='onedmin',
                          level_of_theory='')
+
+    def run_force_field_fit_job(self, label):
+        """
+        Spawn a force field parameter fitting job (currently only Gaussian is supported for this)
+        """
+        if 'gaussian' not in self.ess_settings:
+            logger.error('Cannot execute a force field parameter fitting job in Gaussian. Gaussian  is missing from '
+                         'the ess_settings dictionary. Generating standard MMFF94 conformers instead for '
+                         'species {0} although its force_field attribute was set to "fit".'.format(label))
+            self.species_dict[label].force_field = 'MMFF94'
+            self.species_dict[label].generate_conformers()
+        else:
+            if 'ff_param_fit' not in self.job_dict[label]:
+                self.run_job(label=label, xyz=self.species_dict[label].get_xyz(), job_type='ff_param_fit',
+                             level_of_theory='blyp/svp/svpfit')
 
     def parse_conformer_energy(self, job, label, i):
         """
