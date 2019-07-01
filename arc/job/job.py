@@ -669,11 +669,11 @@ $end
         """Execute the Job"""
         if self.fine:
             logger.info('Running job {name} for {label} (fine opt)'.format(name=self.job_name,
-                                                                            label=self.species_name))
+                                                                           label=self.species_name))
         elif self.pivots:
             logger.info('Running job {name} for {label} (pivots: {pivots})'.format(name=self.job_name,
-                                                                                    label=self.species_name,
-                                                                                    pivots=self.pivots))
+                                                                                   label=self.species_name,
+                                                                                   pivots=self.pivots))
         else:
             logger.info('Running job {name} for {label}'.format(name=self.job_name, label=self.species_name))
         logger.debug('writing submit script...')
@@ -1029,7 +1029,6 @@ $end
             for ess, phrase_list in levels_ess.items():
                 for phrase in phrase_list:
                     if phrase in self.level_of_theory:
-                        print(phrase)
                         self.software = ess.lower()
             if self.software is None:
                 if self.job_type in ['conformer', 'opt', 'freq', 'optfreq', 'sp']:
