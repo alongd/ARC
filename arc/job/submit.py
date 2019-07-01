@@ -189,6 +189,7 @@ rm -rf $sdir
 #$ -cwd
 #$ -o out.txt
 #$ -e err.txt
+#$ -l h=!node67.cluster
 
 echo "Running on node:"
 hostname
