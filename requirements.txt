@@ -12,6 +12,7 @@ openbabel
 pybel
 IPython
 yaml
+ambertools=19
 
 # required for rmg until new binaries are released
 tensorflow

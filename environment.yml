@@ -5,6 +5,7 @@ channels:
   - omnia
   - conda-forge
   - anaconda
+  - ambermd
 dependencies:
   - libgcc # [unix]
   - python
@@ -36,7 +37,7 @@ dependencies:
   - mopac
   - graphviz
   - scoop
-  - libgfortran >=1.0 # You may need to comment this out for mac osx
+  - libgfortran >=1.0  # You may need to comment this out for mac osx
   - ffmpeg
   - jupyter
   - networkx
@@ -53,3 +54,4 @@ dependencies:
   - ase >=3.15.0
   - tensorflow
   - scikit-learn
+  - ambertools=19
