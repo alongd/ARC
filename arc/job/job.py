@@ -93,7 +93,7 @@ class Job(object):
 
     self.job_status:
     The job server status is in job.job_status[0] and can be either 'initializing' / 'running' / 'errored' / 'done'
-    The job ess (electronic structure software calculation) status is in  job.job_status[0] and can be
+    The job ess (electronic structure software calculation) status is in  job.job_status[1] and can be
     either `initializing` / `running` / `errored: {error type / message}` / `unconverged` / `done`
     """
     def __init__(self, project, ess_settings, species_name, xyz, job_type, level_of_theory, multiplicity,
@@ -139,7 +139,7 @@ class Job(object):
         self.input = ''
         self.server_nodes = list()
         job_types = ['conformer', 'opt', 'freq', 'optfreq', 'sp', 'composite', 'scan', 'gsm', 'irc', 'ts_guess',
-                     'orbitals', 'onedmin']  # allowed job types
+                     'orbitals', 'onedmin', 'ff_param_fit', 'gromacs']  # allowed job types
         # the 'conformer' job type is identical to 'opt', but we differentiate them to be identifiable in Scheduler
         if job_type not in job_types:
             raise ValueError("Job type {0} not understood. Must be one of the following:\n{1}".format(
@@ -159,7 +159,9 @@ class Job(object):
         self.software = software
         self.method, self.basis_set = '', ''
         if '/' in self.level_of_theory:
-            self.method, self.basis_set = self.level_of_theory.split('/')
+            splits = self.level_of_theory.split('/')
+            self.method = splits[0]
+            self.basis_set = '/'.join(splits[1:])  # there are two '/' symbols in a ff_param_fit job's l.o.t, keep both
         else:  # this is a composite job
             self.method, self.basis_set = self.level_of_theory, ''
 
@@ -322,8 +324,8 @@ class Job(object):
 
     def write_input_file(self):
         """
-        Write a software-specific job-specific input file.
-        Saves the file locally and also uploads it to the server.
+        Write a software-specific, job-specific input file.
+        Save the file locally and also upload it to the server.
         """
         if self.initial_trsh and not self.trsh:
             # use the default trshs defined by the user in the initial_trsh dictionary
@@ -421,6 +423,24 @@ wf,spin={spin},charge={charge};}}
             if 'PRINT_ORBITALS' not in self.trsh:
                 self.trsh += '\n   NBO           TRUE\n   RUN_NBO6      TRUE\n   ' \
                              'PRINT_ORBITALS  TRUE\n   GUI           2'
+
+        elif self.job_type == 'ff_param_fit' and self.software == 'gaussian':
+            job_type_1, job_type_2 = 'opt', 'freq'
+            self.input += """
+            
+--Link1--
+%chk=check.chk
+%mem={memory}mb
+%NProcShared={cpus}
+
+# HF/6-31G(d) SCF=Tight Pop=MK IOp(6/33=2,6/41=10,6/42=17) scf(maxcyc=500) guess=read geom=check Maxdisk=2GB
+
+name
+
+{charge} {multiplicity}
+
+
+"""
 
         elif self.job_type == 'freq':
             if self.software == 'gaussian':
@@ -1023,6 +1043,11 @@ $end
             if 'gaussian' not in self.ess_settings.keys():
                 raise JobError('Could not find the Gaussian software to run the composite method {0}.\n'
                                'ess_settings is:\n{1}'.format(self.method, self.ess_settings))
+            self.software = 'gaussian'
+        elif self.job_type == 'ff_param_fit':
+            if 'gaussian' not in self.ess_settings.keys():
+                raise JobError('Could not find Gaussian to fit force field parameters.\n'
+                               'ess_settings is:\n{0}'.format(self.ess_settings))
             self.software = 'gaussian'
         else:
             # First check the levels_ess dictionary from settings.py:
