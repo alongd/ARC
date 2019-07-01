@@ -1,0 +1,26 @@
+define                   = -DFLEXIBLE
+
+integrator               = l-bfgs
+nsteps                   = 500
+
+emtol                    = 10.0
+emstep                   = 0.01
+
+nstxout                  = 1
+nstxout-compressed       = 500
+
+cutoff-scheme            = Verlet
+pbc                      = xyz
+
+coulombtype              = PME
+rcoulomb                 = 1.0
+
+vdwtype                  = PME
+rvdw                     = 1.0
+DispCorr                 = Ener
+
+Tcoupl                   = no
+Pcoupl                   = no
+
+constraints              = none
+constraint-algorithm     = lincs
