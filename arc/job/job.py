@@ -43,8 +43,10 @@ class Job(object):
                                            in which case the job should be unrestricted with multiplicity = 1
     `spin`            ``int``            The spin. automatically derived from the multiplicity
     `xyz`             ``str``            The xyz geometry. Used for the calculation
+    `radius`          ``float``          The species radius in Angstrom.
     `n_atoms`         ``int``            The number of atoms in self.xyz
     `conformer`       ``int``            Conformer number if optimizing conformers
+    `conformers`      ``str``            A path to the YAML file conformer coordinates for a Gromacs MD job.
     `is_ts`           ``bool``           Whether this species represents a transition structure
     `level_of_theory` ``str``            Level of theory, e.g. 'CBS-QB3', 'CCSD(T)-F12a/aug-cc-pVTZ',
                                            'B3LYP/6-311++G(3df,3pd)'...
@@ -101,7 +103,7 @@ class Job(object):
                  pivots=None, memory=14, comments='', trsh='', scan_trsh='', ess_trsh_methods=None, bath_gas=None,
                  initial_trsh=None, job_num=None, job_server_name=None, job_name=None, job_id=None, server=None,
                  initial_time=None, occ=None, max_job_time=120, scan_res=None, checkfile=None, number_of_radicals=None,
-                 testing=False):
+                 conformers=None, radius=None, testing=False):
         self.project = project
         self.ess_settings = ess_settings
         self.initial_time = initial_time
@@ -114,8 +116,10 @@ class Job(object):
         self.spin = self.multiplicity - 1
         self.number_of_radicals = number_of_radicals
         self.xyz = xyz
-        self.n_atoms = self.xyz.count('\n')
+        self.n_atoms = self.xyz.count('\n') if xyz is not None else None
+        self.radius = radius
         self.conformer = conformer
+        self.conformers = conformers
         self.is_ts = is_ts
         self.ess_trsh_methods = ess_trsh_methods if ess_trsh_methods is not None else list()
         self.trsh = trsh
@@ -146,8 +150,10 @@ class Job(object):
                 job_type, job_types))
         self.job_type = job_type
 
-        if self.xyz is None:
-            raise ValueError('{0} Job of species {1} got None for xyz'.format(job_type, self.species_name))
+        if self.xyz is None and not self.job_type == 'gromacs':
+            raise ValueError('{0} Job of species {1} got None for xyz'.format(self.job_type, self.species_name))
+        if self.conformers is None and self.job_type == 'gromacs':
+            raise ValueError('{0} Job of species {1} got None for conformers'.format(self.job_type, self.species_name))
 
         if self.job_num < 0:
             self._set_job_number()
@@ -310,7 +316,7 @@ class Job(object):
         try:
             self.submit = submit_scripts[self.server][self.software.lower()].format(
                 name=self.job_server_name, un=un, t_max=t_max, mem_per_cpu=int(self.mem_per_cpu), cpus=self.cpus,
-                architecture=architecture)
+                architecture=architecture, size=int(self.radius * 4))
         except KeyError:
             logger.error('Could not find submit script for server {0}, make sure your submit scripts '
                          '(under arc/job/submit.py) are updated with the servers defined.'.format(self.server))
@@ -332,7 +338,7 @@ class Job(object):
             if self.software in self.initial_trsh:
                 self.trsh = self.initial_trsh[self.software]
 
-        self.input = input_files[self.software]
+        self.input = input_files.get(self.software, None)
 
         slash = ''
         if self.software == 'gaussian' and '/' in self.level_of_theory:
@@ -584,19 +590,21 @@ $end
         else:
             try:
                 self.input = self.input.format(memory=int(self.memory), method=self.method, slash=slash,
-                                               basis=self.basis_set, charge=self.charge, multiplicity=self.multiplicity,
-                                               spin=self.spin, xyz=self.xyz, job_type_1=job_type_1, cpus=self.cpus,
-                                               job_type_2=job_type_2, scan=scan_string, restricted=restricted,
-                                               fine=fine, shift=self.shift, trsh=self.trsh, scan_trsh=self.scan_trsh,
-                                               bath=self.bath_gas)
+                                               basis=self.basis_set, charge=self.charge, cpus=self.cpus,
+                                               multiplicity=self.multiplicity, spin=self.spin, xyz=self.xyz,
+                                               job_type_1=job_type_1, job_type_2=job_type_2, scan=scan_string,
+                                               restricted=restricted, fine=fine, shift=self.shift, trsh=self.trsh,
+                                               scan_trsh=self.scan_trsh, bath=self.bath_gas) \
+                    if self.input is not None else None
             except KeyError:
                 logger.error('Could not interpret all input file keys in\n{0}'.format(self.input))
                 raise
         if not self.testing:
             if not os.path.exists(self.local_path):
                 os.makedirs(self.local_path)
-            with open(os.path.join(self.local_path, input_filename[self.software]), 'w') as f:
-                f.write(self.input)
+            if self.input is not None:
+                with open(os.path.join(self.local_path, input_filename[self.software]), 'w') as f:
+                    f.write(self.input)
             if self.server != 'local':
                 self._upload_input_file()
             else:
@@ -614,8 +622,9 @@ $end
     def _upload_input_file(self):
         ssh = SSHClient(self.server)
         ssh.send_command_to_server(command='mkdir -p {0}'.format(self.remote_path))
-        remote_file_path = os.path.join(self.remote_path, input_filename[self.software])
-        ssh.upload_file(remote_file_path=remote_file_path, file_string=self.input)
+        if self.input is not None:
+            remote_file_path = os.path.join(self.remote_path, input_filename[self.software])
+            ssh.upload_file(remote_file_path=remote_file_path, file_string=self.input)
         for up_file in self.additional_files_to_upload:
             if up_file['source'] == 'path':
                 local_file_path = up_file['local']
@@ -627,7 +636,13 @@ $end
             ssh.upload_file(remote_file_path=up_file['remote'], local_file_path=local_file_path)
             if up_file['make_x']:
                 ssh.send_command_to_server(command='chmod +x {0}'.format(up_file['name']), remote_path=self.remote_path)
-        self.initial_time = ssh.get_last_modified_time(remote_file_path=remote_file_path)
+        if self.input is not None:
+            self.initial_time = ssh.get_last_modified_time(remote_file_path=remote_file_path)
+        else:
+            # e.g., input file is None when running Gromacs, use the submit file instead
+            self.initial_time = ssh.get_last_modified_time(
+                remote_file_path=os.path.join(self.remote_path,
+                                              submit_filename[servers[self.server]['cluster_soft']]))
 
     def _upload_check_file(self, local_check_file_path=None):
         if self.server != 'local':
@@ -1030,6 +1045,11 @@ $end
             elif self.bath_gas not in ['He', 'Ne', 'Ar', 'Kr', 'H2', 'N2', 'O2']:
                 raise JobError('Bath gas for OneDMin should be one of the following:\n'
                                'He, Ne, Ar, Kr, H2, N2, O2.\nGot: {0}'.format(self.bath_gas))
+        elif self.job_type == 'gromacs':
+            if 'gromacs' not in self.ess_settings.keys():
+                raise JobError('Could not find the Gromacs software to run the MD job {0}.\n'
+                               'ess_settings is:\n{1}'.format(self.method, self.ess_settings))
+            self.software = 'gromacs'
         elif self.job_type == 'orbitals':
             # currently we only have a script to print orbitals on QChem,
             # could/should definitely be elaborated to additional ESS
@@ -1195,8 +1215,12 @@ $end
             # Orca's memory is per cpu and in MB
             self.memory = memory * 1000 / self.cpus
         elif self.software == 'qchem':
-            pass  # QChem manages its memory automatically, for now ARC will not intervene
+            # QChem manages its memory automatically, for now ARC will not intervene
             # see http://www.q-chem.com/qchem-website/manual/qchem44_manual/CCparallel.html
+            self.memory = memory  # dummy
+        elif self.software == 'gromacs':
+            # not managing memory for Gromacs
+            self.memory = memory  # dummy
 
     def set_file_paths(self):
         """
@@ -1228,7 +1252,7 @@ $end
             with open(os.path.join(self.local_path, 'geo.xyz'), 'w') as f:
                 f.write(self.xyz)
             self.additional_files_to_upload.append({'name': 'geo', 'source': 'path', 'make_x': False,
-                                                    'local': 'onedmin.molpro.x',
+                                                    'local': os.path.join(self.local_path, 'geo.xyz'),
                                                     'remote': os.path.join(self.remote_path, 'geo.xyz')})
             # make the m.x file executable
             self.additional_files_to_upload.append({'name': 'm.x', 'source': 'input_files', 'make_x': True,
@@ -1237,3 +1261,28 @@ $end
             self.additional_files_to_upload.append({'name': 'qc.mol', 'source': 'input_files', 'make_x': False,
                                                     'local': 'onedmin.qc.mol',
                                                     'remote': os.path.join(self.remote_path, 'qc.mol')})
+        if self.job_type == 'gromacs':
+            self.additional_files_to_upload.append({'name': 'gaussian.out', 'source': 'path', 'make_x': False,
+                                                    'local': os.path.join(self.project_directory, 'calcs', 'Species',
+                                                                          self.species_name, 'ff_param_fit',
+                                                                          'gaussian.out'),
+                                                    'remote': os.path.join(self.remote_path, 'gaussian.out')})
+            self.additional_files_to_upload.append({'name': 'coords.yml', 'source': 'path', 'make_x': False,
+                                                    'local': self.conformers,
+                                                    'remote': os.path.join(self.remote_path, 'coords.yml')})
+            self.additional_files_to_upload.append({'name': 'acpype.py', 'source': 'path', 'make_x': False,
+                                                    'local': os.path.join(arc_path, 'arc', 'scripts', 'conformers',
+                                                                          'acpype.py'),
+                                                    'remote': os.path.join(self.remote_path, 'acpype.py')})
+            self.additional_files_to_upload.append({'name': 'mdconf.py', 'source': 'path', 'make_x': False,
+                                                    'local': os.path.join(arc_path, 'arc', 'scripts', 'conformers',
+                                                                          'mdconf.py'),
+                                                    'remote': os.path.join(self.remote_path, 'mdconf.py')})
+            self.additional_files_to_upload.append({'name': 'M00.tleap', 'source': 'path', 'make_x': False,
+                                                    'local': os.path.join(arc_path, 'arc', 'scripts', 'conformers',
+                                                                          'M00.tleap'),
+                                                    'remote': os.path.join(self.remote_path, 'M00.tleap')})
+            self.additional_files_to_upload.append({'name': 'mdp.mdp', 'source': 'path', 'make_x': False,
+                                                    'local': os.path.join(arc_path, 'arc', 'scripts', 'conformers',
+                                                                          'mdp.mdp'),
+                                                    'remote': os.path.join(self.remote_path, 'mdp.mdp')})
