@@ -24,9 +24,6 @@ import time
 import numpy as np
 import pprint
 from heapq import nsmallest
-import sys
-import psutil
-import os
 
 from rdkit import Chem
 from rdkit.Chem.rdchem import EditableMol as RDMol
@@ -41,7 +38,6 @@ import rmgpy.molecule.group as gr
 from arc.arc_exceptions import ConformerError
 from arc.species import converter
 from arc.common import logger
-from arc.settings import arc_path
 import arc.plotter
 
 ##################################################################
@@ -155,9 +151,7 @@ def generate_conformers(mol_list, label, xyzs=None, torsions=None, tops=None, ch
     t0 = time.time()
 
     confs_to_return = confs_to_return or CONFS_TO_RETURN
-    de_threshold = de_threshold or DE_THRESHOLD
     max_confs_num = max_confs_num or MAX_CONFS_NUM
-    smeared_scan_res = smeared_scan_res or SMEARED_SCAN_RESOLUTIONS
     max_combination_iterations = max_combination_iterations or MAX_COMBINATION_ITERATIONS
     combination_threshold = combination_threshold or COMBINATION_THRESHOLD
 
@@ -176,15 +170,12 @@ def generate_conformers(mol_list, label, xyzs=None, torsions=None, tops=None, ch
     conformers = generate_force_field_conformers(mol_list=mol_list, label=label, xyzs=xyzs, torsion_num=len(torsions),
                                                  charge=charge, multiplicity=multiplicity, num_confs=num_confs,
                                                  force_field=force_field)
-    if force_field != 'fit':
-        conformers = determine_dihedrals(conformers, torsions)
-        conformers, hypothetical_num_comb = deduce_new_conformers(conformers, torsions, tops, mol_list,
-                                                                  de_threshold, smeared_scan_res, force_field=force_field,
-                                                                  max_combination_iterations=max_combination_iterations,
-                                                                  combination_threshold=combination_threshold, plot=plot)
-        confs_to_return = min(confs_to_return, hypothetical_num_comb)
-    else:
-        confs_to_return = 1
+    conformers = determine_dihedrals(conformers, torsions)
+    conformers, hypothetical_num_comb = deduce_new_conformers(conformers, torsions, tops, mol_list,
+                                                              de_threshold, smeared_scan_res, force_field=force_field,
+                                                              max_combination_iterations=max_combination_iterations,
+                                                              combination_threshold=combination_threshold, plot=plot)
+    confs_to_return = min(confs_to_return, hypothetical_num_comb)
     lowest_confs = get_lowest_confs(conformers, n=confs_to_return)
 
     execution_time = time.time() - t0
@@ -201,7 +192,7 @@ def generate_conformers(mol_list, label, xyzs=None, torsions=None, tops=None, ch
                                      # todo: modify conformer readers as well
 
 
-def deduce_new_conformers(conformers, torsions, tops, mol_list, de_threshold, smeared_scan_res=None,
+def deduce_new_conformers(conformers, torsions, tops, mol_list, de_threshold=None, smeared_scan_res=None,
                           force_field='MMFF94', max_combination_iterations=25, combination_threshold=1000, plot=False):
     """
     By knowing the existing torsion wells, get the geometries of all important conformers.
@@ -224,6 +215,8 @@ def deduce_new_conformers(conformers, torsions, tops, mol_list, de_threshold, sm
         list: New conformer combinations, entries are conformer dictionaries.
         int: Number of all possible combinations
     """
+    de_threshold = de_threshold or DE_THRESHOLD
+    smeared_scan_res = smeared_scan_res or SMEARED_SCAN_RESOLUTIONS
     torsion_angles = get_torsion_angles(conformers, torsions)  # get all wells per torsion
     mol = mol_list[0]
 
@@ -279,7 +272,7 @@ def deduce_new_conformers(conformers, torsions, tops, mol_list, de_threshold, sm
         # don't generate all combinations, there are simply too many
         # iteratively filter by energy and atom collisions
         for i in range(max_combination_iterations):
-            logger.info('iteration ', i)
+            logger.debug('iteration ', i)
             newest_conformers_dict, newest_conformer_list = dict(), list()  # conformers from the current iteration
             for tor, sampling_points in zip(multiple_tors, multiple_sampling_points):
                 energies, xyzs = change_dihedrals_and_force_field_it(mol, xyz=base_xyz, torsions=[tor],
@@ -292,7 +285,7 @@ def deduce_new_conformers(conformers, torsions, tops, mol_list, de_threshold, sm
                         if compare_xyz(xyz, conf['xyz']):
                             exists = True
                             break
-                    if xyz is not None and energy is not None:
+                    if xyz is not None:
                         conformer = {'index': len(conformers) + len(new_conformers) + len(newest_conformer_list),
                                      'xyz': xyz,
                                      'FF energy': round(energy, 3),
@@ -310,16 +303,17 @@ def deduce_new_conformers(conformers, torsions, tops, mol_list, de_threshold, sm
             new_conformers.extend(newest_conformer_list)
             if not newest_conformer_list:
                 newest_conformer_list = [lowest_conf_i]
-            lowest_conf_i = get_lowest_confs(newest_conformer_list, n=1)[0]
-            if plot:
-                logger.info('comparing lowest xyz to base xyz:')
-                arc.plotter.show_sticks(lowest_conf_i['xyz'])
-                logger.info(compare_xyz(lowest_conf['xyz'], lowest_conf_i['xyz']))
-            if lowest_conf_i['FF energy'] == lowest_conf['FF energy']\
-                    and compare_xyz(lowest_conf['xyz'], lowest_conf_i['xyz']):
-                break
-            elif lowest_conf_i['FF energy'] < lowest_conf['FF energy']:
-                lowest_conf = lowest_conf_i
+            if force_field != 'gromacs':
+                lowest_conf_i = get_lowest_confs(newest_conformer_list, n=1)[0]
+                if plot:
+                    logger.info('comparing lowest xyz to base xyz:')
+                    arc.plotter.show_sticks(lowest_conf_i['xyz'])
+                    logger.info(compare_xyz(lowest_conf['xyz'], lowest_conf_i['xyz']))
+                if lowest_conf_i['FF energy'] == lowest_conf['FF energy']\
+                        and compare_xyz(lowest_conf['xyz'], lowest_conf_i['xyz']):
+                    break
+                elif lowest_conf_i['FF energy'] < lowest_conf['FF energy']:
+                    lowest_conf = lowest_conf_i
 
         if plot:
             num_comb = arc.plotter.plot_torsion_angles(torsion_angles, multiple_sampling_points_dict,
@@ -340,14 +334,16 @@ def deduce_new_conformers(conformers, torsions, tops, mol_list, de_threshold, sm
                                                                  new_dihedrals=product_combinations, optimize=False,
                                                                  force_field=force_field)
             for energy, xyz in zip(energies, xyzs):
-                new_conformers.append({'index': len(conformers) + len(new_conformers),
-                                       'xyz': xyz,
-                                       'FF energy': energy,
-                                       'source': 'Generated all combinations from scan map'})
+                if xyz is not None:
+                    new_conformers.append({'index': len(conformers) + len(new_conformers),
+                                           'xyz': xyz,
+                                           'FF energy': energy,
+                                           'source': 'Generated all combinations from scan map'})
         else:
+            # no multiple torsions (all torsions are symmetric or no torsions in the molecule), this is a trivial case
             new_conformers.append({'index': len(conformers) + len(new_conformers),
                                    'xyz': converter.get_xyz_string(coord=base_xyz, mol=mol),
-                                   'FF energy': None,
+                                   'FF energy': lowest_conf['FF energy'],
                                    'source': 'Generated all combinations from scan map'})
     return new_conformers, hypothetical_num_comb
 
@@ -376,16 +372,8 @@ def generate_force_field_conformers(mol_list, label, torsion_num, charge, multip
     """
     conformers = list()
     number_of_heavy_atoms = len([atom for atom in mol_list[0].atoms if atom.isNonHydrogen()])
-    if force_field == 'fit':
-        # We'll start with MMFF94, then fit a new FF to the resulting conformer
-        force_field = 'MMFF94'
-        num_confs = num_confs or determine_number_of_conformers_to_generate(heavy_atoms=number_of_heavy_atoms,
-                                                                            torsion_num=torsion_num, label=label,
-                                                                            minimalist=True)
-    else:
-        num_confs = num_confs or determine_number_of_conformers_to_generate(heavy_atoms=number_of_heavy_atoms,
-                                                                            torsion_num=torsion_num, label=label)
-
+    num_confs = num_confs or determine_number_of_conformers_to_generate(heavy_atoms=number_of_heavy_atoms,
+                                                                        torsion_num=torsion_num, label=label)
     logger.info('Species {0} has {1} heavy atoms and {2} torsions. Using {3} random conformers.'.format(
         label, number_of_heavy_atoms, torsion_num, num_confs))
     for mol in mol_list:
@@ -433,7 +421,7 @@ def change_dihedrals_and_force_field_it(mol, xyz, torsions, new_dihedrals, optim
 
     Args:
         mol (Molecule): The RMG molecule with the connectivity information.
-        xyz (str, unicode, or list): The base 3D geometry to be changed in either string or array format.
+        xyz (str, unicode, or list): The base 3D geometry to be changed, in either string or array format.
         torsions (list): Entries are torsion tuples for which the dihedral will be changed relative to xyz.
         new_dihedrals (list): Entries are same size lists of dihedral angles (floats) corresponding to the torsions.
         optimize (bool, optional): Whether to optimize the generated conformer using FF. True to optimize.
@@ -464,10 +452,17 @@ def change_dihedrals_and_force_field_it(mol, xyz, torsions, new_dihedrals, optim
             conf, rd_mol, indx_map = converter.rdkit_conf_from_mol(mol, xyz)
             rd_tor_map = [indx_map[i - 1] for i in torsion]  # convert the atom indices in the torsion to RDKit indices
             xyz = converter.set_rdkit_dihedrals(conf, rd_mol, indx_map, rd_tor_map, deg_abs=dihedral)
-            energy, xyz_ = get_force_field_energies(mol=mol, xyz=xyz, optimize=optimize, force_field=force_field,
-                                                    return_xyz_strings=return_xyz_strings)
-            energies.append(energy[0])
-            xyzs.append(xyz_[0])
+            if force_field != 'gromacs':
+                energy, xyz_ = get_force_field_energies(mol=mol, xyz=xyz, optimize=optimize, force_field=force_field,
+                                                        return_xyz_strings=return_xyz_strings)
+                if energy and xyz_:
+                    print(energy)
+                    print(xyz_)
+                    energies.append(energy[0])
+                    xyzs.append(xyz_[0])
+            else:
+                energies.append(None)
+                xyzs.append(xyz)
     return energies, xyzs
 
 
@@ -556,11 +551,15 @@ def determine_dihedrals(conformers, torsions):
         list: Entries are conformer dictionaries.
     """
     for conformer in conformers:
-        coord = converter.get_xyz_matrix(conformer['xyz'])[0]
-        conformer['torsion_dihedrals'] = dict()
-        for torsion in torsions:
-            angle = calculate_dihedral_angle(coord=coord, torsion=torsion)
-            conformer['torsion_dihedrals'][tuple(torsion)] = angle
+        if isinstance(conformer['xyz'], (str, unicode)):
+            coord = converter.get_xyz_matrix(conformer['xyz'])[0]
+        else:
+            coord = conformer['xyz']
+        if 'torsion_dihedrals' not in conformer or not conformer['torsion_dihedrals']:
+            conformer['torsion_dihedrals'] = dict()
+            for torsion in torsions:
+                angle = calculate_dihedral_angle(coord=coord, torsion=torsion)
+                conformer['torsion_dihedrals'][tuple(torsion)] = angle
     return conformers
 
 
@@ -711,23 +710,28 @@ def determine_well_width_tolerance(mean_width):
     return tol
 
 
-def get_lowest_confs(conformers, n=1, energy='FF'):
+def get_lowest_confs(confs, n=1, energy='FF energy'):
     """
     Get the most stable conformer
 
     Args:
-        conformers (list): Entries are conformer dictionaries.
+        confs (list): Entries are either conformer dictionaries or a length two list of xyz coordinates and energy.
         n (int): Number of lowest conformers to return.
-        energy (str, unicode, optional): The energy attribute to search by.
-                                         Currently only 'FF' (or 'FF energy') are supported.
+        energy (str, unicode, optional): The energy attribute to search by. Currently only 'FF energy' is supported.
 
     Returns:
         list: Conformer dictionaries.
     """
-    if energy == 'FF':
-        energy = 'FF energy'
-    conformer_list = [conformer for conformer in conformers if energy in conformer]
-    return nsmallest(n, conformer_list, key=lambda conf:conf[energy])
+    if not confs:
+        raise ConformerError('get_lowest_confs() got no conformers')
+    if isinstance(confs[0], dict):
+        conformer_list = [conformer for conformer in confs if energy in conformer and conformer[energy]]
+        return nsmallest(n, conformer_list, key=lambda conf: conf[energy])
+    elif isinstance(confs[0], list):
+        return nsmallest(n, confs, key=lambda conf: conf[1])
+    else:
+        raise ConformerError('confs could either be a list of dictionaries or a list of lists. '
+                             'Got a list of {0}'.format(type(confs[0])))
 
 
 def get_torsion_angles(conformers, torsions):
@@ -1057,7 +1061,8 @@ def rdkit_force_field(rd_mol, rd_index_map=None, mol=None, force_field='MMFF94',
         mol_properties = Chem.AllChem.MMFFGetMoleculeProperties(rd_mol, mmffVariant=str(force_field))
         if mol_properties is not None:
             ff = Chem.AllChem.MMFFGetMoleculeForceField(rd_mol, mol_properties, confId=i)
-            energies.append(ff.CalcEnergy())
+            if optimize:
+                energies.append(ff.CalcEnergy())
             conf, xyz = rd_mol.GetConformer(i), list()
             for j in range(conf.GetNumAtoms()):
                 pt = conf.GetAtomPosition(j)
