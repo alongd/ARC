@@ -102,7 +102,7 @@ H      -0.64965442    0.77699377   -0.67782845
 H       1.40965394    0.40549015    0.08143497"""
         ch2oh_mol = Molecule(SMILES=str('[CH2]O'))
         energies = conformers.get_force_field_energies(mol=ch2oh_mol, xyz=ch2oh_xyz, optimize=True)[0]
-        self.assertAlmostEqual(energies[0], 56.3455558, 5)
+        self.assertAlmostEqual(energies[0], 13.466911, 5)
 
     def test_generate_force_field_conformers(self):
         """Test generating conformers from RDKit """
@@ -844,7 +844,7 @@ H       0.55243400    0.27426600   -0.91441800
 H       0.56679600   -1.00155900    0.10247100"""
         ncc_mol = Molecule(SMILES=str('NCC'))
         energies = conformers.get_force_field_energies(mol=ncc_mol, xyz=ncc_xyz, optimize=True)[0]
-        self.assertAlmostEqual(energies[0], -25.732724, 5)
+        self.assertAlmostEqual(energies[0], -6.15026868, 5)
         idx0 = 10
         for i, atom in enumerate(ncc_mol.atoms):
             if atom.isNitrogen():
@@ -901,7 +901,7 @@ H       0.56736059   -0.96947011    0.13439310
 
     def test_get_lowest_confs(self):
         """Test getting the n lowest conformers"""
-
+        # test the case when confs is a list of dicts:
         confs = [{'index': 0,
                   'FF energy': 20},
                  {'index': 1,
@@ -910,12 +910,22 @@ H       0.56736059   -0.96947011    0.13439310
                   'FF energy': 40},
                  {'index': 1,
                   'some other energy': 10}]
-        lowest_confs = conformers.get_lowest_confs(confs, n=2, energy='FF')
-
+        lowest_confs = conformers.get_lowest_confs(confs, n=2, energy='FF energy')
         self.assertEqual(len(lowest_confs), 2)
         for conf in lowest_confs:
             self.assertTrue(conf['FF energy'] in [20, 30])
             self.assertTrue(conf['index'] in [0, 1])
+
+        # test the case when confs is a list of lists:
+        confs = [['C 1 0 0', 8],
+                 ['C 2 0 0', 7],
+                 ['C 3 0 0', 6],
+                 ['C 4 0 0', 5]]
+        lowest_confs = conformers.get_lowest_confs(confs)
+        self.assertEqual(len(lowest_confs), 1)
+        self.assertEqual(lowest_confs[0][0], 'C 4 0 0')
+        self.assertEqual(lowest_confs[0][1], 5)
+
 
     def test_compare_xyz(self):
         """Test determining whether two conformers have the same xyz to a certain precision"""
