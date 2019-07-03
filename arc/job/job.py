@@ -314,9 +314,10 @@ class Job(object):
             else:
                 architecture = '\n#$ -l magnycours'
         try:
+            size = int(self.radius * 4) if self.radius is not None else None
             self.submit = submit_scripts[self.server][self.software.lower()].format(
                 name=self.job_server_name, un=un, t_max=t_max, mem_per_cpu=int(self.mem_per_cpu), cpus=self.cpus,
-                architecture=architecture, size=int(self.radius * 4))
+                architecture=architecture, size=size)
         except KeyError:
             logger.error('Could not find submit script for server {0}, make sure your submit scripts '
                          '(under arc/job/submit.py) are updated with the servers defined.'.format(self.server))
