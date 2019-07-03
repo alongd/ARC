@@ -80,6 +80,8 @@ class TestARC(unittest.TestCase):
                          't_max': None,
                          't_count': None,
                          'use_bac': True,
+                         'force_field': u'MMFF94',
+                         'confs_to_dft': 5,
                          'allow_nonisomorphic_2d': False,
                          'ess_settings': {'gaussian': ['local', 'server2'], 'onedmin': ['server1'],
                                           'molpro': ['server2'], 'qchem': ['server1']},
