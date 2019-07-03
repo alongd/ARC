@@ -605,10 +605,9 @@ class ARCSpecies(object):
                 mol_list = self.mol_list
             else:
                 mol_list = [self.mol]
-            lowest_confs, confs = conformers.generate_conformers(mol_list=mol_list, xyzs=self.xyzs, label=self.label,
-                                                                 charge=self.charge, multiplicity=self.multiplicity,
-                                                                 force_field=self.force_field,
-                                                                 confs_to_return=confs_to_dft)
+            lowest_confs = conformers.generate_conformers(mol_list=mol_list, xyzs=self.xyzs, label=self.label,
+                                                          charge=self.charge, multiplicity=self.multiplicity,
+                                                          force_field=self.force_field, confs_to_return=confs_to_dft)[0]
             self.conformers.extend([conf['xyz'] for conf in lowest_confs])
             self.conformer_energies = [None] * len(lowest_confs)
         else:
@@ -687,8 +686,7 @@ class ARCSpecies(object):
                     if ts_guess.xyz is not None:
                         xyz = ts_guess.xyz
                         return xyz
-                else:
-                    return None
+                return None
             elif len(self.conformers):
                 xyz = self.conformers[0]
             elif get_cheap:
