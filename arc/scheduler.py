@@ -934,9 +934,9 @@ class Scheduler(object):
             save_yaml_file(path=confs_path, content=confs)  # save for the next iteration and for archiving
 
             confs = conformers.determine_dihedrals(confs, torsions)
-            new_conformers, hypothetical_num_comb = \
-                conformers.deduce_new_conformers(conformers=confs, torsions=torsions, tops=tops, force_field='gromacs',
-                                                 mol_list=self.species_dict[label].mol_list, plot=False)
+            new_conformers, _ = conformers.deduce_new_conformers(conformers=confs, torsions=torsions, tops=tops,
+                                                                 mol_list=self.species_dict[label].mol_list,
+                                                                 force_field='gromacs', plot=False)
             new_confs_path = os.path.join(self.project_directory, 'calcs', 'Species', label,
                                           'ff_param_fit', 'new_conformers.yml')  # list of lists
             coords = [get_xyz_matrix(new_conf['xyz'])[0] for new_conf in new_conformers]
@@ -1519,7 +1519,7 @@ class Scheduler(object):
             else:
                 # why did we found a higher conformer?
                 logger.error('Could not converge on a single conformer using Gromacs for species {0}, got a higher'
-                             'energy conformer. Using the latest lowest conformer.'.format(label, max_iterations))
+                             'energy conformer. Using the latest lowest conformer.'.format(label))
                 done = True
         if done:
             # process conformers and DFT them
