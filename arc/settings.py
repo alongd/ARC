@@ -112,6 +112,7 @@ output_filename = {'gaussian': 'input.log',
                    'qchem': 'output.out',
                    'molpro': 'input.out',
                    'onedmin': 'output.out',
+                   'gromacs': 'output.yml'
                    }
 
 default_levels_of_theory = {'conformer': 'b97d3/6-31+g(d,p)',
