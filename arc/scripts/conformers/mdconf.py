@@ -73,7 +73,8 @@ def read_yaml(path):
     Returns:
         list: The list saved to file.
     """
-    assert(os.path.isfile(path))
+    if not os.path.isfile(path):
+        raise IOError('The file {0} was not found and cannot be read.'.format(path))
     with open(path, 'r') as f:
         content = yaml.load(stream=f, Loader=yaml.FullLoader)
     return content
@@ -179,12 +180,12 @@ def amber_to_gromacs(g_path, coord=None, size=25, mdp_filename='mdp.mdp', first_
     if coord is not None:
         write_mol_files(coord)
     subprocess.call(AMBERTOOLS, shell=True)
-    
+
     system = MolTopol(acFileXyz='M00.crd7', acFileTop='M00.parm7', basename='M00', verbose=False)
     system.writeGromacsTopolFiles(amb2gmx=True)
 
     subprocess.call(GROMACS.format(size=size, mdp=mdp_filename), shell=True)
-    
+
     opt_xyz, e = '', None
     if os.path.isfile('md.log'):
         with open('md.log', 'r') as f:
