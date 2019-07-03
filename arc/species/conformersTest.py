@@ -884,7 +884,7 @@ H       0.57958892    0.25714689   -0.94038297
 H       0.56736059   -0.96947011    0.13439310
 """
 
-        self.assertAlmostEqual(energies[0], -25.732724, 5)
+        self.assertAlmostEqual(energies[0], -6.1502687, 5)
         self.assertEqual(xyzs[0], expected_xyz)
         self.assertEqual(len(energies), 1)
 
