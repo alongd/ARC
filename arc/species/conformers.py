@@ -22,7 +22,6 @@ from __future__ import (absolute_import, division, print_function, unicode_liter
 from itertools import product
 import time
 import numpy as np
-import pprint
 from heapq import nsmallest
 
 from rdkit import Chem
@@ -272,7 +271,7 @@ def deduce_new_conformers(conformers, torsions, tops, mol_list, de_threshold=Non
         # don't generate all combinations, there are simply too many
         # iteratively filter by energy and atom collisions
         for i in range(max_combination_iterations):
-            logger.debug('iteration ', i)
+            logger.debug('iteration {0}'.format(i))
             newest_conformers_dict, newest_conformer_list = dict(), list()  # conformers from the current iteration
             for tor, sampling_points in zip(multiple_tors, multiple_sampling_points):
                 energies, xyzs = change_dihedrals_and_force_field_it(mol, xyz=base_xyz, torsions=[tor],
@@ -535,8 +534,7 @@ def determine_number_of_conformers_to_generate(heavy_atoms, torsion_num, label, 
     else:
         num_confs = max(num_confs_1, num_confs_2)
 
-
-    return max(num_confs_1, num_confs_2)
+    return num_confs
 
 
 def determine_dihedrals(conformers, torsions):
@@ -1132,7 +1130,7 @@ def check_atom_collisions(xyz):
          bool: True if they are colliding, False otherwise.
 
     Todo:
-        * Atom collision distance (radii for symbols) from QCElemental
+        * Atom collision distance (radii for symbols)
     """
     xyz, symbols, _, _, _ = converter.get_xyz_matrix(xyz)
     if symbols == ['H', 'H']:
@@ -1141,7 +1139,7 @@ def check_atom_collisions(xyz):
             return True
     for i, coord1 in enumerate(xyz):
         if i < len(xyz) - 1:
-            for j, coord2 in enumerate(xyz[i+1:]):
+            for coord2 in xyz[i+1:]:
                 if sum((coord1[k] - coord2[k]) ** 2 for k in range(3)) ** 0.5 < 0.9:
                     return True
     return False
