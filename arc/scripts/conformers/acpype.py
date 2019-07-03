@@ -350,11 +350,13 @@ try:
 except NameError:
     from sets import Set as set
 
-def elapsedTime(seconds, suffixes = ['y', 'w', 'd', 'h', 'm', 's'], add_s = False, separator = ' '):
+
+def elapsedTime(seconds, suffixes=None, add_s=False, separator=' '):
     """
     Takes an amount of seconds and turns it into a human-readable amount of time.
     """
     # the formatted time string to be returned
+    suffixes = ['y', 'w', 'd', 'h', 'm', 's'] if suffixes is None else suffixes
     time = []
 
     # the pieces of time to iterate over (days, hours, minutes, etc)
@@ -570,7 +572,7 @@ class AbstractTopol(object):
                 self.printWarn("cannot read charges from a PDB file")
                 self.printWarn("using now 'bcc' method for charge")
 
-        if self.chargeVal == None and not done:
+        if self.chargeVal is None and not done:
             self.printWarn("no charge value given, trying to guess one...")
             mol2FileForGuessCharge = self.inputFile
             if self.ext == ".pdb":
@@ -3527,9 +3529,13 @@ if __name__ == '__main__':
         ipshell = IPShellEmbed()
         ipshell()
 
-    try: rmtree(molecule.tmpDir)
-    except: pass
-    if acpypeFailed: sys.exit(1)
-    try: os.chdir(molecule.rootDir)
-    except: pass
-
+    try:
+        rmtree(molecule.tmpDir)
+    except:
+        pass
+    if acpypeFailed:
+        sys.exit(1)
+    try:
+        os.chdir(molecule.rootDir)
+    except:
+        pass
