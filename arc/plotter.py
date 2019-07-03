@@ -474,7 +474,7 @@ def plot_torsion_angles(torsion_angles, torsions_sampling_points=None, wells_dic
                 x, y = list(), list()
                 h_line = False
                 if e_conformers is not None:
-                    for j, dihedral in enumerate(sampling_points[tuple(torsion)]):
+                    for dihedral in sampling_points[tuple(torsion)]:
                         for e_conformer in e_conformers[tuple(torsion)]:
                             if 'FF energy' in e_conformer and e_conformer['FF energy'] is not None \
                                     and 'dihedral' in e_conformer and e_conformer['dihedral'] is not None \
