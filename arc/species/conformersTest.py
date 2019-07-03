@@ -863,8 +863,8 @@ H       0.56679600   -1.00155900    0.10247100"""
                             idx0 = i + 1
         torsion = (idx0, idx1, idx2, idx3)
 
-        rd_conf, rd_mol, indx_map = converter.rdkit_conf_from_mol(ncc_mol, converter.get_xyz_matrix(ncc_xyz)[0])
-        rd_scan = [indx_map[i - 1] for i in torsion]  # convert the atom indices to RDKit indices
+        rd_conf, _, index_map = converter.rdkit_conf_from_mol(ncc_mol, converter.get_xyz_matrix(ncc_xyz)[0])
+        rd_scan = [index_map[i - 1] for i in torsion]  # convert the atom indices to RDKit indices
         angle = rdMT.GetDihedralDeg(rd_conf, rd_scan[0], rd_scan[1], rd_scan[2], rd_scan[3])
 
         self.assertAlmostEqual(angle, 62.9431377, 5)
