@@ -10,6 +10,7 @@ import os
 import numpy as np
 
 from rdkit import Chem
+from rdkit.Chem import rdMolTransforms as rdMT
 import pybel
 
 from rmgpy.species import Species
@@ -49,6 +50,9 @@ def get_xyz_string(coord, mol=None, number=None, symbol=None):
     `xyz` is an array of arrays, as shown in the example above.
     This function isn't defined as a method of ARCSpecies since it is also used when parsing opt geometry in Scheduler
     """
+    if isinstance(coord, (str, unicode)):
+        logger.debug('Cannot convert string format xyz into a string...')
+        return coord
     result = ''
     if symbol is not None:
         elements = symbol
@@ -87,23 +91,33 @@ def get_xyz_matrix(xyz):
     [-2.2115796924, -0.4529256762, 0.4144516252],
     [-1.8113671395, -0.3268900681, -1.1468957003]]
 
-    Returns xyz as well as atom symbols, x, y, and z separately
+    Args:
+        xyz (str, unicode): The xyz coordinates to conver.
+
+    Returns:
+        list: Array-style coordinates.
+        list: Chemical symbols of the elements in xyz, order preserved.
+        list: X axis values.
+        list: Y axis values.
+        list: Z axis values.
     """
+    if not isinstance(xyz, (str, unicode)):
+        raise InputError('Can only convert sting or unicode to list, got: {0}'.format(xyz))
     xyz = standardize_xyz_string(xyz)
-    x, y, z, symbols = [], [], [], []
+    x, y, z, symbols = list(), list(), list(), list()
     for line in xyz.split('\n'):
         if line:
             line_split = line.split()
             if len(line_split) != 4:
-                raise InputError('Expecting each line in an xyz string to have 4 elements, e.g.:\n'
-                                 'C    0.1000    0.2000   -0.3000\nbut got {0} elements:\n{1}'.format(
+                raise InputError('Expecting each line in an xyz string to have 4 values, e.g.:\n'
+                                 'C    0.1000    0.2000   -0.3000\nbut got {0} values:\n{1}'.format(
                                   len(line_split), line))
             atom, xx, yy, zz = line.split()
             x.append(float(xx))
             y.append(float(yy))
             z.append(float(zz))
             symbols.append(atom)
-    xyz = []
+    xyz = list()
     for i, _ in enumerate(x):
         xyz.append([x[i], y[i], z[i]])
     return xyz, symbols, x, y, z
@@ -168,8 +182,8 @@ def rmg_mol_from_inchi(inchi):
     try:
         rmg_mol = Molecule().fromInChI(str(inchi))
     except (AtomTypeError, ValueError) as e:
-        logger.warning('Got the following Error when trying to create an RMG Molecule object from '
-                       'InChI:\n{0}'.format(e.message))
+        logger.warning('Got the following Error when trying to create an RMG Molecule object from InChI:'
+                       '\n{0}'.format(e.message))
         return None
     return rmg_mol
 
@@ -297,7 +311,6 @@ def add_rads_by_atom_valance(mol):
             missing_electrons = 4 - atomic_orbitals
             if missing_electrons:
                 atom.radicalElectrons = missing_electrons
-            # print(mol.toAdjacencyList())
 
 
 def set_radicals_by_map(mol, radical_map):
@@ -399,6 +412,7 @@ def rdkit_conf_from_mol(mol, coordinates):
     Args:
         mol (Molecule): The RMG Molecule object
         coordinates (list, str, unicode): Array of xyz coordinates for the conformer
+                                          (could also be in string format, it will be converted)
 
     Returns:
         Conformer: An RDKit Conformer object
@@ -412,14 +426,40 @@ def rdkit_conf_from_mol(mol, coordinates):
         coordinates = get_xyz_matrix(xyz=coordinates)[0]
     rd_mol, rd_indices = mol.toRDKitMol(removeHs=False, returnMapping=True)
     Chem.AllChem.EmbedMolecule(rd_mol)  # unfortunately, this mandatory embedding changes the coordinates
-    indx_map = dict()
+    index_map = dict()
     for xyz_index, atom in enumerate(mol.atoms):  # generate an atom index mapping dictionary
         rd_index = rd_indices[atom]
-        indx_map[xyz_index] = rd_index
+        index_map[xyz_index] = rd_index
     conf = rd_mol.GetConformer(id=0)
     for i in range(rd_mol.GetNumAtoms()):  # reset atom coordinates
-        conf.SetAtomPosition(indx_map[i], coordinates[i])
-    return conf, rd_mol, indx_map
+        conf.SetAtomPosition(index_map[i], coordinates[i])
+    return conf, rd_mol, index_map
+
+
+def set_rdkit_dihedrals(conf, rd_mol, indx_map, rd_scan, deg_increment=None, deg_abs=None):
+    """
+    A helper function for setting dihedral angles
+    `conf` is the RDKit conformer with the current xyz information
+    `rd_mol` is the RDKit molecule
+    `indx_map` is an atom index mapping dictionary, keys are xyz_index, values are rd_index
+    `rd_scan` is the torsion scan atom indices corresponding to the RDKit conformer indices
+    Either `deg_increment` or `deg_abs` must be specified for the dihedral increment
+    Returns xyz in an array format ordered according to the map,
+    the elements in the xyz should be identified by the calling function from the context
+    """
+    if deg_increment is None and deg_abs is None:
+        raise SpeciesError('Cannot set dihedral without either a degree increment or an absolute degree')
+    if deg_increment is not None:
+        deg0 = rdMT.GetDihedralDeg(conf, rd_scan[0], rd_scan[1], rd_scan[2], rd_scan[3])  # get original dihedral
+        deg = deg0 + deg_increment
+    else:
+        deg = deg_abs
+    rdMT.SetDihedralDeg(conf, rd_scan[0], rd_scan[1], rd_scan[2], rd_scan[3], deg)
+    new_xyz = list()
+    for i in range(rd_mol.GetNumAtoms()):
+        new_xyz.append([conf.GetAtomPosition(indx_map[i]).x, conf.GetAtomPosition(indx_map[i]).y,
+                        conf.GetAtomPosition(indx_map[i]).z])
+    return new_xyz
 
 
 def check_isomorphism(mol1, mol2, filter_structures=True):
