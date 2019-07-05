@@ -80,6 +80,7 @@ class TestARC(unittest.TestCase):
                          't_max': None,
                          't_count': None,
                          'use_bac': True,
+                         'confs_to_dft': 5,
                          'allow_nonisomorphic_2d': False,
                          'ess_settings': {'gaussian': ['local', 'server2'], 'onedmin': ['server1'],
                                           'molpro': ['server2'], 'qchem': ['server1']},
@@ -98,6 +99,7 @@ class TestARC(unittest.TestCase):
                                       'neg_freqs_trshed': [],
                                       'number_of_rotors': 0,
                                       'rotors_dict': {},
+                                      'force_field': u'MMFF94',
                                       't1': None}],
                          }
         self.assertEqual(restart_dict, expected_dict)
