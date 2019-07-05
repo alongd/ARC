@@ -38,29 +38,22 @@ from arc.arc_exceptions import InputError
 logger = get_logger()
 
 
-def draw_3d(xyz=None, species=None, project_directory=None, save_only=False):
+def draw_structure(xyz=None, species=None, project_directory=None, save_only=False, method='show_sticks'):
     """
-    Draws the molecule in a "3D-balls" style
-    If xyz is given, it will be used, otherwise the function looks for species.final_xyz
-    Input coordinates are in string format
-    Saves an image if a species and `project_directory` are provided
-    If `save_only` is ``True``, then don't plot, only save the image
+    A helper function for drawing a molecular structure using either show_sticks or draw_3d.
+
+    Args:
+        xyz (str, unicode, optional): The xyz coordinates to plot in string format.
+        species (ARCSpecies, optional): A species from which to extract the xyz coordinates to plot.
+        project_directory (str, unicode, optional): A directory for saving the image (only supported for draw_3d).
+        save_only (bool, optional): whether to only save an image without displaying it. True to no save.
+        method (str, unicode, optional): THe method to use, either show_sticks or draw_3d.
     """
-    xyz = check_xyz_species_for_drawing(xyz, species)
-    _, atoms, x, y, z = get_xyz_matrix(xyz)
-    atoms = [str(a) for a in atoms]
-    ase_atoms = list()
-    for i, atom in enumerate(atoms):
-        ase_atoms.append(Atom(symbol=atom, position=(x[i], y[i], z[i])))
-    ase_mol = Atoms(ase_atoms)
-    if not save_only:
-        display(view(ase_mol, viewer='x3d'))
-    if project_directory is not None and species is not None:
-        folder_name = 'rxns' if species.is_ts else 'Species'
-        geo_path = os.path.join(project_directory, 'output', folder_name, species.label, 'geometry')
-        if not os.path.exists(geo_path):
-            os.makedirs(geo_path)
-        ase_write(filename=os.path.join(geo_path, 'geometry.png'), images=ase_mol, scale=100)
+    success = False
+    if method == 'show_sticks':
+        success = show_sticks(xyz=xyz, species=species, project_directory=project_directory)
+    if not success or method == 'draw_3d':
+        draw_3d(xyz=xyz, species=species, project_directory=project_directory, save_only=save_only)
 
 
 def show_sticks(xyz=None, species=None, project_directory=None):
@@ -88,15 +81,29 @@ def show_sticks(xyz=None, species=None, project_directory=None):
     return True
 
 
-def check_xyz_species_for_drawing(xyz, species):
-    """A helper function to avoid repetitive code"""
-    if species is not None and xyz is None:
-        xyz = xyz if xyz is not None else species.final_xyz
-    if species is not None and not isinstance(species, ARCSpecies):
-        raise InputError('Species must be an ARCSpecies instance. Got {0}.'.format(type(species)))
-    if species is not None and species.final_xyz is None:
-        raise InputError('Species {0} has an empty final_xyz attribute.'.format(species.label))
-    return xyz
+def draw_3d(xyz=None, species=None, project_directory=None, save_only=False):
+    """
+    Draws the molecule in a "3D-balls" style
+    If xyz is given, it will be used, otherwise the function looks for species.final_xyz
+    Input coordinates are in string format
+    Saves an image if a species and `project_directory` are provided
+    If `save_only` is ``True``, then don't plot, only save the image
+    """
+    xyz = check_xyz_species_for_drawing(xyz, species)
+    _, atoms, x, y, z = get_xyz_matrix(xyz)
+    atoms = [str(a) for a in atoms]
+    ase_atoms = list()
+    for i, atom in enumerate(atoms):
+        ase_atoms.append(Atom(symbol=atom, position=(x[i], y[i], z[i])))
+    ase_mol = Atoms(ase_atoms)
+    if not save_only:
+        display(view(ase_mol, viewer='x3d'))
+    if project_directory is not None and species is not None:
+        folder_name = 'rxns' if species.is_ts else 'Species'
+        geo_path = os.path.join(project_directory, 'output', folder_name, species.label, 'geometry')
+        if not os.path.exists(geo_path):
+            os.makedirs(geo_path)
+        ase_write(filename=os.path.join(geo_path, 'geometry.png'), images=ase_mol, scale=100)
 
 
 def plot_3d_mol_as_scatter(xyz, path=None, plot_h=True, show_plot=True):
@@ -143,6 +150,17 @@ def plot_3d_mol_as_scatter(xyz, path=None, plot_h=True, show_plot=True):
     if path is not None:
         image_path = os.path.join(path, "scattered_balls_structure.png")
         plt.savefig(image_path, bbox_inches='tight')
+
+
+def check_xyz_species_for_drawing(xyz, species):
+    """A helper function to avoid repetitive code"""
+    if species is not None and xyz is None:
+        xyz = xyz if xyz is not None else species.final_xyz
+    if species is not None and not isinstance(species, ARCSpecies):
+        raise InputError('Species must be an ARCSpecies instance. Got {0}.'.format(type(species)))
+    if species is not None and species.final_xyz is None:
+        raise InputError('Species {0} has an empty final_xyz attribute.'.format(species.label))
+    return xyz
 
 
 def plot_rotor_scan(angle, v_list, path=None, pivots=None, comment=''):
