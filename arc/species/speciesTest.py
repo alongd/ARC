@@ -15,8 +15,7 @@ from rmgpy.species import Species
 from rmgpy.reaction import Reaction
 from rmgpy.transport import TransportData
 
-from arc.species.species import ARCSpecies, TSGuess, get_min_energy_conformer,\
-    determine_rotor_type, determine_rotor_symmetry
+from arc.species.species import ARCSpecies, TSGuess, determine_rotor_type, determine_rotor_symmetry
 from arc.species.converter import get_xyz_string, get_xyz_matrix, molecules_from_xyz
 from arc.settings import arc_path, default_levels_of_theory
 from arc.rmgdb import make_rmg_database_object
@@ -87,11 +86,11 @@ class TestARCSpecies(unittest.TestCase):
                           H      -0.50949998    0.00000000    0.00000000""")
         cls.spc9 = ARCSpecies(label=str('NH2(S)'), adjlist=nh_s_adj, xyz=nh_s_xyz, multiplicity=1, charge=0)
 
-    def test_conformers(self):
-        """Test conformer generation"""
-        self.spc1.generate_conformers()  # vinoxy has two res. structures, each is assigned two conformers (RDkit/ob)
-        self.assertEqual(len(self.spc1.conformers), 4)
-        self.assertEqual(len(self.spc1.conformers), len(self.spc1.conformer_energies))
+    # def test_conformers(self):
+    #     """Test conformer generation"""
+    #     self.spc1.generate_conformers()  # vinoxy has two res. structures, each is assigned two conformers (RDkit/ob)
+    #     self.assertEqual(len(self.spc1.conformers), 4)
+    #     self.assertEqual(len(self.spc1.conformers), len(self.spc1.conformer_energies))
 
     def test_rmg_species_conversion_into_arc_species(self):
         """Test the conversion of an RMG species into an ARCSpecies"""
@@ -308,6 +307,7 @@ H      -1.67091600   -1.35164600   -0.93286400
                          'label': 'methylamine',
                          'long_thermo_description': spc_dict['long_thermo_description'],
                          'charge': 0,
+                         'force_field': u'MMFF94',
                          'is_ts': False,
                          't1': None,
                          'bond_corrections': {'C-H': 3, 'C-N': 1, 'H-N': 2},
@@ -471,13 +471,6 @@ H      -1.69944700    0.93441600   -0.11271200"""
         self.assertIsNone(spc4.conformer_energies[2])
         self.assertIsNotNone(spc4.conformer_energies[3])
         self.assertEqual(spc4.multiplicity, 2)
-
-    def test_get_min_energy_conformer(self):
-        """Test that the xyz with the minimum specified energy is returned from get_min_energy_conformer()"""
-        xyzs = ['xyz1', 'xyz2', 'xyz3']
-        energies = [-5, -30, -1.5]
-        min_xyz = get_min_energy_conformer(xyzs, energies)
-        self.assertEqual(min_xyz, 'xyz2')
 
     def test_mol_from_xyz_atom_id_1(self):
         """Test that atom ids are saved properly when loading both xyz and smiles."""
