@@ -1132,7 +1132,7 @@ class Scheduler(object):
                     logger.info('{0}. Method: {1}, relative energy: {2} kcal/mol, guess execution time: {3}'.format(
                         tsg.index, tsg.method, tsg.energy, tsg.execution_time))
                     # for TSs, only use `draw_3d()`, not `show_sticks()` which gets connectivity wrong:
-                    plotter.draw_3d(xyz=tsg.xyz)
+                    plotter.draw_structure(xyz=tsg.xyz, method='draw_3d')
             if self.species_dict[label].chosen_ts is None:
                 raise SpeciesError('Could not attribute most stable conformer {0} of {1} with a respective '
                                    'TS guess'.format(i_min, label))
@@ -1158,13 +1158,12 @@ class Scheduler(object):
                 rxn_str = ' of reaction {0}'.format(self.species_dict[label].rxn_label)
             logger.info('\nOptimized geometry for {label}{rxn} at {level}:\n{xyz}'.format(
                 label=label, rxn=rxn_str, level=job.level_of_theory, xyz=self.species_dict[label].final_xyz))
-            successful_drawing_sticks = False
             if not job.is_ts:
-                successful_drawing_sticks = plotter.show_sticks(species=self.species_dict[label],
-                                                                project_directory=self.project_directory)
-            if job.is_ts or not successful_drawing_sticks:
+                plotter.draw_structure(species=self.species_dict[label], project_directory=self.project_directory)
+            else:
                 # for TSs, only use `draw_3d()`, not `show_sticks()` which gets connectivity wrong:
-                plotter.draw_3d(species=self.species_dict[label], project_directory=self.project_directory)
+                plotter.draw_structure(species=self.species_dict[label], project_directory=self.project_directory,
+                                       method='draw_3d')
             # Check frequencies (using cclib crashes for CBS-QB3 output, so using an explicit parser here)
             frequencies = parser.parse_frequencies(job.local_path_to_output_file, job.software)
             freq_ok = self.check_negative_freq(label=label, job=job, vibfreqs=frequencies)
@@ -1204,13 +1203,12 @@ class Scheduler(object):
                     rxn_str = ' of reaction {0}'.format(self.species_dict[label].rxn_label)
                 logger.info('\nOptimized geometry for {label}{rxn} at {level}:\n{xyz}'.format(
                     label=label, rxn=rxn_str, level=job.level_of_theory, xyz=self.species_dict[label].final_xyz))
-                successful_drawing_sticks = False
-                if not job.is_ts:
-                    successful_drawing_sticks = plotter.show_sticks(species=self.species_dict[label],
-                                                                    project_directory=self.project_directory)
-                if job.is_ts or not successful_drawing_sticks:
-                    # for TSs, only use `draw_3d()`, not `show_sticks()` which gets connectivity wrong:
-                    plotter.draw_3d(species=self.species_dict[label], project_directory=self.project_directory)
+            if not job.is_ts:
+                plotter.draw_structure(species=self.species_dict[label], project_directory=self.project_directory)
+            else:
+                # for TSs, only use `draw_3d()`, not `show_sticks()` which gets connectivity wrong:
+                plotter.draw_structure(species=self.species_dict[label], project_directory=self.project_directory,
+                                       method='draw_3d')
                 self.species_dict[label].opt_level = self.opt_level
                 # Update restart dictionary and save the yaml restart file:
                 if not self.species_dict[label].is_ts:
@@ -1495,7 +1493,7 @@ class Scheduler(object):
         """
         done = False
         conf_list = read_yaml_file(job.local_path_to_output_file)
-        lowest_conf = conformers.get_lowest_confs(conf_list)
+        lowest_conf = conformers.get_lowest_confs(conf_list)[0]
         if self.species_dict[label].recent_md_conformer is None:
             self.species_dict[label].recent_md_conformer = lowest_conf + [0]
         else:
@@ -1516,7 +1514,7 @@ class Scheduler(object):
                     logger.warning('MD jobs for {0} converged with same energy conformer by different xyz:\n'
                                    '{1}\n\nand\n\n{2}'.format(label, self.species_dict[label].recent_md_conformer[0],
                                                               lowest_conf[0]))
-                    done = True  # todo: reconsider
+                    done = True  # Todo: reconsider
             else:
                 # why did we found a higher conformer?
                 logger.error('Could not converge on a single conformer using Gromacs for species {0}, got a higher'
@@ -1524,17 +1522,22 @@ class Scheduler(object):
                 done = True
         if done:
             # process conformers and DFT them
+            logger.info('Final conformer for {0}:\n{1}'.format(label, lowest_conf[0]))
+            plotter.draw_structure(xyz=lowest_conf[0])
             lowest_confs = conformers.get_lowest_confs(conf_list, n=self.confs_to_dft)
             self.species_dict[label].conformers.extend(standardize_xyz_string(conf[0]) for conf in lowest_confs)
             self.species_dict[label].conformer_energies = [None] * self.confs_to_dft
             self.process_conformers(label=label)
         else:
             # spawn a new MD simulation
+            ordinal = get_ordinal_indicator(self.species_dict[label].recent_md_conformer[2])
+            logger.info('{0}{1} conformer for {2}:\n{3}'.format(self.species_dict[label].recent_md_conformer[2],
+                                                                ordinal, label, lowest_conf[0]))
+            plotter.draw_structure(xyz=lowest_conf[0])
             ordinal = get_ordinal_indicator(self.species_dict[label].recent_md_conformer[2] + 1)
             logger.info('Spawning the {0}{1} round of MD simulations for {2}'.format(
                 self.species_dict[label].recent_md_conformer[2] + 1, ordinal, label))
             self.spawn_md_jobs(label, prev_conf_list=conf_list)
-
 
     def check_all_done(self, label):
         """
