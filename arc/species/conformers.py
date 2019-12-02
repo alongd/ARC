@@ -796,7 +796,7 @@ def determine_dihedrals(conformers, torsions):
 
 def determine_torsion_sampling_points(label, torsion_angles, smeared_scan_res=None, symmetry=1):
     """
-    Determine how many points to consider in each well of a torsion for conformer combinations
+    Determine how many points to consider in each well of a torsion for conformer combinations.
 
     Args:
         label (str): The species' label.
@@ -1314,8 +1314,8 @@ def get_wells(label, angles, blank=20):
     if not angles:
         raise ConformerError('Cannot determine wells without angles for {0}'.format(label))
     new_angles = angles
-    if angles[0] < -180 + blank and angles[-1] > 180 - blank:
-        # relocate the first chunk of data to the end, the well seems to include the  +180/-180 degrees point
+    if angles[0] < 0 + blank and angles[-1] > 360 - blank:
+        # relocate the first chunk of data at the end, the well seems to include the  +180/-180 degrees point
         for i, angle in enumerate(angles):
             if i > 0 and abs(angle - angles[i - 1]) > blank:
                 part2 = angles[:i]
