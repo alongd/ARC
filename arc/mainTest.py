@@ -55,8 +55,8 @@ class TestARC(unittest.TestCase):
         self.assertIn("'C-C': 1", long_thermo_description)
         self.assertIn("'C-H': 6", long_thermo_description)
         expected_dict = {'composite_method': '',
-                         'conformer_level': 'b3lyp/6-31g(d,p) empiricaldispersion=gd3bj',
-                         'ts_guess_level': 'b3lyp/6-31g(d,p) empiricaldispersion=gd3bj',
+                         'conformer_level': 'apfd/def2svp',
+                         'ts_guess_level': 'apfd/def2svp',
                          'opt_level': 'b3lyp/6-311+g(3df,2p)',
                          'freq_level': 'b3lyp/6-311+g(3df,2p)',
                          'freq_scale_factor': 0.967,
