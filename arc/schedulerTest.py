@@ -101,8 +101,7 @@ H      -1.82570782    0.42754384   -0.56130718"""
         self.assertTrue(os.path.isfile(methylamine_conf_path))
         with open(methylamine_conf_path, 'r') as f:
             lines = f.readlines()
-        self.assertTrue('Conformers for methylamine, optimized at the b3lyp/6-31g(d,p) EmpiricalDispersion=GD3BJ level'
-                        in lines[0])
+        self.assertTrue('Conformers for methylamine, optimized at the apfd/def2svp level' in lines[0])
         self.assertEqual(lines[11], 'SMILES: CN\n')
         self.assertTrue('Relative Energy:' in lines[12])
         self.assertEqual(lines[16][0], 'N')
