@@ -586,3 +586,22 @@ def sort_two_lists_by_the_first(list1, list2):
     for counter, index in enumerate(sorted_indices):
         sorted_list2[counter] = new_list2[index]
     return sorted_list1, sorted_list2
+
+
+def is_notebook():
+    """
+    Check whether ARC was called from an IPython notebook.
+
+    Returns:
+        bool: ``True`` if ARC was called from a notebook, ``False`` otherwise.
+    """
+    try:
+        shell = get_ipython().__class__.__name__
+        if shell == 'ZMQInteractiveShell':
+            return True  # Jupyter notebook or qtconsole
+        elif shell == 'TerminalInteractiveShell':
+            return False  # Terminal running IPython
+        else:
+            return False  # Other type (?)
+    except NameError:
+        return False  # Probably standard Python interpreter
