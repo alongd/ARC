@@ -31,7 +31,7 @@ from rmgpy.data.transport import TransportLibrary
 from rmgpy.quantity import ScalarQuantity
 from rmgpy.species import Species
 
-from arc.common import get_logger, min_list, save_yaml_file, sort_two_lists_by_the_first
+from arc.common import get_logger, min_list, save_yaml_file, sort_two_lists_by_the_first, is_notebook
 from arc.exceptions import InputError, SanitizationError
 from arc.species.converter import rdkit_conf_from_mol, molecules_from_xyz, check_xyz_dict, str_to_xyz, xyz_to_str, \
     xyz_to_x_y_z, xyz_from_data, remove_dummies
@@ -54,13 +54,14 @@ def draw_structure(xyz=None, species=None, project_directory=None, method='show_
         method (str, optional): The method to use, either show_sticks or draw_3d.
     """
     success = False
-    if method == 'show_sticks':
+    notebook = is_notebook()
+    if method == 'show_sticks' and notebook:
         try:
             success = show_sticks(xyz=xyz, species=species, project_directory=project_directory)
         except (IndexError, InputError):
             pass
-    if not success or method == 'draw_3d':
-        draw_3d(xyz=xyz, species=species, project_directory=project_directory)
+    if not success or method == 'draw_3d' or not notebook:
+        draw_3d(xyz=xyz, species=species, project_directory=project_directory, save_only=not notebook)
 
 
 def show_sticks(xyz=None, species=None, project_directory=None):
