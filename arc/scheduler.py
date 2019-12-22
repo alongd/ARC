@@ -17,7 +17,7 @@ from IPython.display import display
 from rmgpy.reaction import Reaction
 
 from arc.common import get_logger, read_yaml_file, save_yaml_file, get_ordinal_indicator, min_list, \
-    calculate_dihedral_angle, sort_two_lists_by_the_first
+    sort_two_lists_by_the_first
 from arc import plotter
 from arc import parser
 from arc.job.job import Job
@@ -32,7 +32,7 @@ from arc.ts.atst import autotst
 from arc.settings import default_job_types, rotor_scan_resolution
 import arc.rmgdb as rmgdb
 import arc.species.conformers as conformers  # import after importing plotter to avoid circular import
-from arc.species.vectors import get_angle
+from arc.species.vectors import get_angle, calculate_dihedral_angle
 
 
 logger = get_logger()
