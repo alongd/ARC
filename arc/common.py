@@ -600,3 +600,16 @@ def sort_two_lists_by_the_first(list1, list2):
     for counter, index in enumerate(sorted_indices):
         sorted_list2[counter] = new_list2[index]
     return sorted_list1, sorted_list2
+
+
+
+SA observables: True
+SA species: 10
+SA reactions: 10
+SA pdep threshold: 0.1
+collision violators: True
+all core species: False
+RMG tolerances: [0.1, 0.01, 0.001]
+max tandem iterations: 10
+max RMG exceptions allowed: 10
+max RMG walltime: 00:05:00:00
