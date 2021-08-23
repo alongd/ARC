@@ -26,10 +26,17 @@ class TestLocal(unittest.TestCase):
         self.assertIsInstance(out1, tuple)
         self.assertIsInstance(out1[0], list)
         self.assertIsInstance(out1[0][0], str)
-        self.assertEqual(out1[1], '')
+        self.assertEqual(out1[1], [])
         self.assertIn('arc', out1[0])
         self.assertIn('ARC.py', out1[0])
         self.assertIn('environment.yml', out1[0])
+
+    def test_determine_job_id(self):
+        """Test determining a job ID from the stdout of a job submission command."""
+        # HTCondor
+        stdout_1 = [['Submitting job(s).', '1 job(s) submitted to cluster 5263.']]
+        job_id = local._determine_job_id(stdout_1[0])
+        self.assertEqual(job_id, '5263')
 
     def test_get_last_modified_time(self):
         """Test the get_last_modified_time() function"""
