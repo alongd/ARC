@@ -4,7 +4,6 @@ A module for representing a reaction.
 
 from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 
-import numpy as np
 from qcelemental.exceptions import ValidationError
 from qcelemental.models.molecule import Molecule as QCMolecule
 
@@ -15,7 +14,7 @@ import arc.rmgdb as rmgdb
 from arc.common import extremum_list, get_logger
 from arc.exceptions import ReactionError, InputError
 from arc.imports import settings
-from arc.species.converter import check_xyz_dict, sort_xyz_using_indices, str_to_xyz, xyz_to_str
+from arc.species.converter import check_xyz_dict, sort_xyz_using_indices, xyz_to_str
 from arc.species.species import ARCSpecies, check_atom_balance, check_label
 
 if TYPE_CHECKING:
