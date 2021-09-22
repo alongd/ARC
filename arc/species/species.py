@@ -1018,8 +1018,6 @@ class ARCSpecies(object):
             if len(lowest_confs):
                 self.conformers.extend([conf['xyz'] for conf in lowest_confs])
                 self.conformer_energies.extend([None] * len(lowest_confs))
-                if lowest_confs:
-                    lowest_conf = conformers.get_lowest_confs(label=self.label, confs=lowest_confs, n=1)[0]
             else:
                 xyz = self.get_xyz(generate=False)
                 if xyz is None or not xyz:
