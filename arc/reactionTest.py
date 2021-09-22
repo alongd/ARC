@@ -543,9 +543,9 @@ class TestARCReaction(unittest.TestCase):
                       'isotopes': (12, 12, 12, 1, 1, 1, 1, 1, 1),
                       'symbols': ('C', 'C', 'C', 'H', 'H', 'H', 'H', 'H', 'H')}
 
-        r_1 = ARCSpecies(label='CH2', adjlist="""1 C u0 p1 c0 {2,S} {3,S}
-2 H u0 p0 c0 {1,S}
-3 H u0 p0 c0 {1,S}""", xyz=ch2_xyz)
+        r_1 = ARCSpecies(label='CH2', xyz=ch2_xyz, adjlist="""1 C u0 p1 c0 {2,S} {3,S}
+                                                              2 H u0 p0 c0 {1,S}
+                                                              3 H u0 p0 c0 {1,S}""")
         r_2 = ARCSpecies(label='C2H4', smiles='C=C', xyz=c2h4_xyz)
         p_1 = ARCSpecies(label='cC3H6', smiles='C1CC1', xyz=c_c3h6_xyz)
         rxn = ARCReaction(reactants=['CH2', 'C2H4'], products=['cC3H6'],
@@ -652,9 +652,9 @@ class TestARCReaction(unittest.TestCase):
                             'isotopes': (12, 12, 12, 12, 1, 1, 1, 1, 1, 1, 1, 1),
                             'symbols': ('C', 'C', 'C', 'C', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H')}
 
-        r_1 = ARCSpecies(label='CH2', adjlist="""1 C u0 p1 c0 {2,S} {3,S}
-2    H u0 p0 c0 {1,S}
-3    H u0 p0 c0 {1,S}""", xyz=ch2_xyz)
+        r_1 = ARCSpecies(label='CH2', xyz=ch2_xyz, adjlist="""1 C u0 p1 c0 {2,S} {3,S}
+                                                              2    H u0 p0 c0 {1,S}
+                                                              3    H u0 p0 c0 {1,S}""")
         r_2 = ARCSpecies(label='CH3CHCH2', smiles='C=CC', xyz=ch3chch2_xyz)
         p_1 = ARCSpecies(label='CH2C(CH3)CH3', smiles='C=C(C)C', xyz=ch2c_ch3_ch3_xyz)
         rxn = ARCReaction(reactants=['CH3CHCH2', 'CH2'], products=['CH2C(CH3)CH3'],
@@ -727,19 +727,19 @@ class TestARCReaction(unittest.TestCase):
                       'isotopes': (12, 12, 12, 12, 12, 12, 1, 1, 1, 1, 1, 1),
                       'symbols': ('C', 'C', 'C', 'C', 'C', 'C', 'H', 'H', 'H', 'H', 'H', 'H')}
         r_1 = ARCSpecies(label='C6H6_1', smiles='C1=CC2CC2=C1', xyz=c6h6_a_xyz)
-        p_1 = ARCSpecies(label='C6H6_b', adjlist="""multiplicity 1
-1  C u0 p0 c0 {2,S} {6,S} {7,S} {8,S}
-2  C u0 p0 c0 {1,S} {3,D} {9,S}
-3  C u0 p0 c0 {2,D} {4,S} {10,S}
-4  C u0 p0 c0 {3,S} {5,D} {11,S}
-5  C u0 p0 c0 {4,D} {6,S} {12,S}
-6  C u0 p1 c0 {1,S} {5,S}
-7  H u0 p0 c0 {1,S}
-8  H u0 p0 c0 {1,S}
-9  H u0 p0 c0 {2,S}
-10 H u0 p0 c0 {3,S}
-11 H u0 p0 c0 {4,S}
-12 H u0 p0 c0 {5,S}""", xyz=c6h6_b_xyz)
+        p_1 = ARCSpecies(label='C6H6_b', xyz=c6h6_b_xyz, adjlist="""multiplicity 1
+                                                                    1  C u0 p0 c0 {2,S} {6,S} {7,S} {8,S}
+                                                                    2  C u0 p0 c0 {1,S} {3,D} {9,S}
+                                                                    3  C u0 p0 c0 {2,D} {4,S} {10,S}
+                                                                    4  C u0 p0 c0 {3,S} {5,D} {11,S}
+                                                                    5  C u0 p0 c0 {4,D} {6,S} {12,S}
+                                                                    6  C u0 p1 c0 {1,S} {5,S}
+                                                                    7  H u0 p0 c0 {1,S}
+                                                                    8  H u0 p0 c0 {1,S}
+                                                                    9  H u0 p0 c0 {2,S}
+                                                                    10 H u0 p0 c0 {3,S}
+                                                                    11 H u0 p0 c0 {4,S}
+                                                                    12 H u0 p0 c0 {5,S}""")
         rxn = ARCReaction(reactants=['C6H6_1'], products=['C6H6_b'], r_species=[r_1], p_species=[p_1])
         self.assertEqual(rxn.atom_map, [1, 4, 2, 0, 5, 3, 10, 9, 8, 7, 6, 11])
         self.assertTrue(check_atom_map(rxn))
@@ -1228,9 +1228,8 @@ class TestARCReaction(unittest.TestCase):
         r_2 = ARCSpecies(label='CH3NH2', smiles='CN', xyz=ch3nh2_xyz)
         p_1 = ARCSpecies(label='H2', smiles='[H][H]', xyz=h2_xyz)
         p_2 = ARCSpecies(label='CH2NH2', smiles='[CH2]N', xyz=ch2nh2_xyz)
-        rxn_1 = ARCReaction(reactants=['H', 'CH3NH2'], products=['H2', 'CH2NH2'])
-        rxn_1.r_species = [r_1, r_2]
-        rxn_1.p_species = [p_1, p_2]
+        rxn_1 = ARCReaction(reactants=['H', 'CH3NH2'], products=['H2', 'CH2NH2'],
+                            r_species=[r_1, r_2], p_species=[p_1, p_2])
         reactants_xyz_str = rxn_1.get_reactants_xyz()
         reactants_xyz_dict = rxn_1.get_reactants_xyz(return_format='dict')
         expected_reactants_xyz_str = """H       0.00000000    0.00000000    0.00000000
@@ -1283,9 +1282,7 @@ H       1.25408721   -0.86065907   -0.09003883"""
         r_1 = ARCSpecies(label='C2H5O3', smiles='CC(O)O[O]', xyz=c2h5o3_xyz)
         p_1 = ARCSpecies(label='C2H4O', smiles='CC=O', xyz=c2h4o_xyz)
         p_2 = ARCSpecies(label='HO2', smiles='O[O]', xyz=ho2_xyz)
-        rxn = ARCReaction(reactants=['C2H5O3'], products=['HO2', 'C2H4O'])
-        rxn.r_species = [r_1]
-        rxn.p_species = [p_1, p_2]
+        rxn = ARCReaction(r_species=[r_1], p_species=[p_1, p_2])
         self.assertEqual(rxn.atom_map, [0, 1, 2, 8, 7, 4, 9, 5, 3, 6])
         self.assertTrue(check_atom_map(rxn))
 
@@ -1383,9 +1380,8 @@ H       1.25408721   -0.86065907   -0.09003883"""
         r_2 = ARCSpecies(label='N2H3', smiles='N[NH]', xyz=n2h3_xyz)
         p_1 = ARCSpecies(label='NH2', smiles='[NH2]', xyz=nh2_xyz)
         p_2 = ARCSpecies(label='N2H2(T)', smiles='[NH][NH]', xyz=n2h3_t_xyz)
-        rxn = ARCReaction(reactants=['NH', 'N2H3'], products=['NH2', 'N2H2(T)'])
-        rxn.r_species = [r_1, r_2]
-        rxn.p_species = [p_1, p_2]
+        rxn = ARCReaction(reactants=['NH', 'N2H3'], products=['NH2', 'N2H2(T)'],
+                          r_species=[r_1, r_2], p_species=[p_1, p_2])
         self.assertEqual(rxn.atom_map, [0, 1, 3, 5, 4, 6, 2])
         self.assertTrue(check_atom_map(rxn))
 
@@ -1438,9 +1434,7 @@ H       1.25408721   -0.86065907   -0.09003883"""
                                     'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H')}
         r_1 = ARCSpecies(label='C10H10_a', smiles='C=C1[CH]C2C=CC=C[C]2C1', xyz=c10h10_a_xyz, multiplicity=3)
         p_1 = ARCSpecies(label='C10H10_b', smiles='C=C1CC2=C(C=CC=C2)C1', xyz=c10h10_b_xyz)
-        rxn = ARCReaction(reactants=['C10H10_a'], products=['C10H10_b'])
-        rxn.r_species = [r_1]
-        rxn.p_species = [p_1]
+        rxn = ARCReaction(r_species=[r_1], p_species=[p_1])
         self.assertEqual(rxn.atom_map, [0, 1, 8, 13, 3, 2, 7, 6, 5, 4, 9, 10, 17, 12, 11, 16, 15, 14, 19, 18])
         self.assertTrue(check_atom_map(rxn))
 
@@ -1501,9 +1495,7 @@ H       1.25408721   -0.86065907   -0.09003883"""
                                    'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H')}
         r_1 = ARCSpecies(label='C9H15_a', smiles='C=C[C](C)CC(C)=CC', xyz=c9h15_a_xyz)
         p_1 = ARCSpecies(label='C9H15_b', smiles='C=CC1(C)C[C](C)C1C', xyz=c9h15_b_xyz)
-        rxn = ARCReaction(reactants=['C10H10_a'], products=['C10H10_b'])
-        rxn.r_species = [r_1]
-        rxn.p_species = [p_1]
+        rxn = ARCReaction(r_species=[r_1], p_species=[p_1])
         self.assertEqual(rxn.atom_map, [0, 4, 2, 3, 5, 7, 8, 1, 6, 11, 9, 10, 16, 22,
                                         20, 21, 14, 23, 12, 15, 19, 13, 17, 18])
         self.assertTrue(check_atom_map(rxn))
@@ -1544,9 +1536,7 @@ H       1.25408721   -0.86065907   -0.09003883"""
         r_1 = ARCSpecies(label='C6H5', smiles='[c]1ccccc1', xyz=c6h5_xyz)
         r_2 = ARCSpecies(label='CO', smiles='[C-]#[O+]', xyz=co_xyz)
         p_1 = ARCSpecies(label='C7H5O', smiles='O=[C]c1ccccc1', xyz=c7h5o_xyz)
-        rxn = ARCReaction(reactants=['C6H5', 'CO'], products=['C7H5O'])
-        rxn.r_species = [r_1, r_2]
-        rxn.p_species = [p_1]
+        rxn = ARCReaction(r_species=[r_1, r_2], p_species=[p_1])
         self.assertEqual(rxn.atom_map, [1, 5, 6, 7, 3, 4, 12, 11, 10, 9, 8, 2, 0])
         self.assertTrue(check_atom_map(rxn))
 
@@ -1577,9 +1567,7 @@ H       1.25408721   -0.86065907   -0.09003883"""
                      'symbols': ('C', 'C', 'O', 'N', 'O', 'H', 'H', 'H', 'H', 'H')}
         r_1 = ARCSpecies(label='C2H5NO2', smiles='[O-][N+](=O)CC', xyz=c2h5no2_xyz)
         p_1 = ARCSpecies(label='C2H5ONO', smiles='CCON=O', xyz=c2h5ono_xyz)
-        rxn = ARCReaction(reactants=['C2H5NO2'], products=['C2H5ONO'])
-        rxn.r_species = [r_1]
-        rxn.p_species = [p_1]
+        rxn = ARCReaction(r_species=[r_1], p_species=[p_1])
         self.assertEqual(rxn.atom_map, [4, 3, 2, 1, 0, 8, 9, 6, 5, 7])
         self.assertTrue(check_atom_map(rxn))
 

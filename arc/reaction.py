@@ -360,6 +360,9 @@ class ARCReaction(object):
             raise ReactionError('Either a label or reactants and products lists must be specified')
         self.reactants = [check_label(reactant)[0] for reactant in self.reactants]
         self.products = [check_label(product)[0] for product in self.products]
+        if bool(len(self.reactants)) ^ bool(len(self.products)):
+            raise ReactionError(f'Both the reactants and products must be specified for a reaction, '
+                                f'got: reactants = {self.reactants}, products = {self.products}.')
 
     def rmg_reaction_to_str(self) -> str:
         """A helper function for dumping the RMG Reaction object as a string for the YAML restart dictionary"""
@@ -848,28 +851,25 @@ class ARCReaction(object):
                                  Default: ``'str'``.
 
         Returns: Union[dict, str]
-            The combined cartesian coordinates
+            The combined cartesian coordinates.
 
         Todo:
             identify flux pairs like in RMG
             orient a line: cm1 - X -- Y - cm2 if there are two reactants
         """
+        xyz_dict = dict()
         if len(self.r_species) == 1:
             xyz_dict = self.r_species[0].get_xyz()
-        elif len(self.r_species) == 2:
+        elif len(self.r_species) >= 2:
             xyz_dict = {'symbols': tuple(), 'isotopes': tuple(), 'coords': tuple()}
             for reactant in self.r_species:
                 xyz = reactant.get_xyz()
                 xyz_dict['symbols'] += xyz['symbols']
                 xyz_dict['isotopes'] += xyz['isotopes']
                 xyz_dict['coords'] += xyz['coords']
-        else:
-            raise NotImplementedError(f'Reactants xyz is only implemented for up to 2 reactants, '
-                                      f'got {len(self.r_species)}.')
 
         xyz_dict = check_xyz_dict(xyz_dict)
-        if return_format == 'str':
-            xyz_dict = xyz_to_str(xyz_dict)
+        xyz_dict = xyz_to_str(xyz_dict) if return_format == 'str' else xyz_dict
         return xyz_dict
 
     def get_products_xyz(self, return_format='str') -> Union[dict, str]:
@@ -882,7 +882,8 @@ class ARCReaction(object):
                                  Default: ``'str'``.
 
         Returns: Union[dict, str]
-            The combined cartesian coordinates
+            The combined cartesian coordinates.
+
         Todo:
             - identify flux pairs like in RMG
             - orient a line: cm1 - X - Y - cm2 if there are two reactants
