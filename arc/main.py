@@ -567,8 +567,6 @@ class ARC(object):
                                    e_confs=self.e_confs,
                                    dont_gen_confs=self.dont_gen_confs,
                                    fine_only=self.fine_only,
-                                   kinetics_adapter=self.kinetics_adapter,
-                                   freq_scale_factor=self.freq_scale_factor,
                                    )
 
         save_yaml_file(path=os.path.join(self.project_directory, 'output', 'status.yml'), content=self.scheduler.output)
