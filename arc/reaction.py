@@ -325,7 +325,7 @@ class ARCReaction(object):
                 else:
                     self.products = [products]
                 if species_list is not None:
-                    if self.reactants is not None and self.products is not None:
+                    if len(self.reactants) and len(self.products):
                         labels = [spc.label for spc in species_list]
                         for spc_label in self.reactants + self.products:
                             if spc_label not in labels:
@@ -590,7 +590,7 @@ class ARCReaction(object):
             for product in self.products:
                 if product not in products:
                     raise ReactionError(f'Product {product} is not in the reaction label ({self.label})')
-        if self.r_species is not None:
+        if len(self.r_species):
             for reactant in self.r_species:
                 if reactant.label not in self.reactants:
                     raise ReactionError(f'Reactant {reactant.label} from {self.label} '
@@ -603,7 +603,7 @@ class ARCReaction(object):
                 if reactant not in [r.label for r in self.r_species]:
                     raise ReactionError(f'Reactant {reactant} is not in '
                                         f'self.r_species ({[r.label for r in self.r_species]})')
-        if self.p_species is not None:
+        if len(self.p_species):
             for product in self.p_species:
                 if product.label not in self.products:
                     raise ReactionError(f'Product {product.label} from {self.label} '
