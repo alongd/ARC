@@ -1260,6 +1260,7 @@ def rmg_mol_to_dict_repr(mol: Molecule,
                        } for atom in mol.atoms],
             'multiplicity': mol.multiplicity,
             'props': mol.props,
+            'atom_order': [atom.id for atom in mol.atoms]
             }
 
 
@@ -1279,25 +1280,22 @@ def rmg_mol_from_dict_repr(representation: dict,
     """
     mol = Molecule(multiplicity=representation['multiplicity'],
                    props=representation['props'])
-    atoms = [Atom(element=Element(number=atom_dict['element']['number'],
-                                  symbol=atom_dict['element']['symbol'],
-                                  name=atom_dict['element']['name'],
-                                  mass=atom_dict['element']['mass'],
-                                  isotope=atom_dict['element']['isotope'],
-                                  ),
-                  radical_electrons=atom_dict['radical_electrons'],
-                  charge=atom_dict['charge'],
-                  lone_pairs=atom_dict['lone_pairs'],
-                  id=atom_dict['id'],
-                  props=atom_dict['props'],
-                  ) for atom_dict in representation['atoms']]
-    mol.atoms = atoms
-    for i, atom_1 in enumerate(atoms):
+    atoms = {atom_dict['id']: Atom(element=Element(number=atom_dict['element']['number'],
+                                                   symbol=atom_dict['element']['symbol'],
+                                                   name=atom_dict['element']['name'],
+                                                   mass=atom_dict['element']['mass'],
+                                                   isotope=atom_dict['element']['isotope'],
+                                                   ),
+                                   radical_electrons=atom_dict['radical_electrons'],
+                                   charge=atom_dict['charge'],
+                                   lone_pairs=atom_dict['lone_pairs'],
+                                   id=atom_dict['id'],
+                                   props=atom_dict['props'],
+                                   ) for atom_dict in representation['atoms']}
+    mol.atoms = list(atoms[atom_id] for atom_id in representation['atom_order'])
+    for i, atom_1 in enumerate(atoms.values()):
         for atom_2_id, bond_order in representation['atoms'][i]['edges'].items():
-            for atom_2 in atoms:
-                if atom_2.id == atom_2_id:
-                    break
-            bond = Bond(atom_1, atom_2, bond_order)
+            bond = Bond(atom_1, atoms[atom_2_id], bond_order)
             mol.add_bond(bond)
     mol.update_atomtypes(raise_exception=False)
     if not is_ts:
