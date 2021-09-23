@@ -254,6 +254,8 @@ class ARCReaction(object):
         self.label = reaction_dict['label'] if 'label' in reaction_dict else ''
         self.multiplicity = reaction_dict['multiplicity'] if 'multiplicity' in reaction_dict else None
         self.charge = reaction_dict['charge'] if 'charge' in reaction_dict else 0
+        self.reactants = reaction_dict.get('reactants') or list()
+        self.products = reaction_dict.get('products') or list()
         if 'family' in reaction_dict and reaction_dict['family'] is not None:
             db = rmgdb.make_rmg_database_object()
             rmgdb.load_families_only(db)
@@ -283,10 +285,8 @@ class ARCReaction(object):
             if 'r_species' in reaction_dict else list()
         self.p_species = [ARCSpecies(species_dict=p_dict) for p_dict in reaction_dict['p_species']] \
             if 'p_species' in reaction_dict else list()
-        self.reactants = reaction_dict['reactants'] if 'reactants' in reaction_dict \
-            else [spc.label for spc in self.r_species]
-        self.products = reaction_dict['products'] if 'products' in reaction_dict \
-            else [spc.label for spc in self.p_species]
+        self.reactants = self.reactants or [spc.label for spc in self.r_species]
+        self.products = self.products or [spc.label for spc in self.p_species]
         self.ts_species = reaction_dict['ts_species'].from_dict() if 'ts_species' in reaction_dict else None
 
         self.long_kinetic_description = reaction_dict['long_kinetic_description'] \
