@@ -684,11 +684,8 @@ def get_modified_params_from_zmat_2(zmat_1: dict,
                     new_vars[param_d2] = d2 or 0 if not add_dummy else 0
                 elif i == 1 and j == 2 and param_d3 is not None:
                     # This is d3.
-                    if param_d3 is not None:
-                        new_coord.append(param_d3)
-                        new_vars[param_d3] = d3 or 0
-                    else:
-                        new_coord.append(None)
+                    new_coord.append(param_d3)
+                    new_vars[param_d3] = d3 or 0
                 else:
                     new_coord.append(None)
         new_coords.append(tuple(new_coord))
