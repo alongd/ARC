@@ -22,8 +22,9 @@ import pandas as pd
 
 from arc.common import ARC_PATH, get_logger
 from arc.exceptions import JobError
-from arc.imports import pipe_submit, settings, submit_scripts
-from arc.job.local import (check_job_status,
+from arc.imports import local_arc_path, pipe_submit, settings, submit_scripts
+from arc.job.local import (change_mode,
+                           check_job_status,
                            delete_job,
                            get_last_modified_time,
                            rename_output,
@@ -40,9 +41,9 @@ if TYPE_CHECKING:
 
 logger = get_logger()
 
-default_job_settings, servers, submit_filenames, t_max_format, output_filenames, rotor_scan_resolution, tasks_coeff = \
+default_job_settings, servers, submit_filenames, t_max_format, input_filenames, output_filenames, rotor_scan_resolution, tasks_coeff = \
     settings['default_job_settings'], settings['servers'], settings['submit_filenames'], settings['t_max_format'], \
-    settings['output_filenames'], settings['rotor_scan_resolution'], settings['tasks_coeff']
+    settings['input_filenames'], settings['output_filenames'], settings['rotor_scan_resolution'], settings['tasks_coeff']
 
 constraint_type_dict = {2: 'B', 3: 'A', 4: 'D'}
 
@@ -279,6 +280,28 @@ class JobAdapter(ABC):
         Execute a job to the server's queue.
         """
         pass
+
+    def set_job_shell_file_to_upload(self) -> dict:
+        """
+        The HTCondor cluster software does not allow, to the best of our understanding,
+        the inclusion of sell commands in its submit script. As a result, often an additional
+        ``job.sh`` file is required. This method generalizes such cases for all cluster software
+        and will search within the submit_scripts dictionary for the respective server and the
+        respective ESS whether an additional ``<ess>_job`` key is available, where ``<ess>`` is
+        the actual ESS name, e.g., ``gaussian_job``. THis file will be uploaded as ``job.sh``.
+
+        Returns:
+            dict: A file representation.
+        """
+        file_name = 'job.sh'
+        script_key = f'{self.job_adapter}_job'
+        if self.server in submit_scripts.keys() and script_key in submit_scripts[self.server].keys():
+            file_content = submit_scripts[self.server][script_key].format(un='$USER', cpus=self.cpu_cores)
+            with open(os.path.join(self.local_path, file_name), 'w') as f:
+                f.write(file_content)
+                if self.server == 'local':
+                    change_mode(mode='+x', file_name=file_name, path=self.local_path)
+            return self.get_file_property_dictionary(file_name=file_name, make_x=True)
 
     def execute(self):
         """
@@ -584,7 +607,8 @@ class JobAdapter(ABC):
         This is not an abstract method and should not be overwritten.
         """
         # job_number
-        csv_path = os.path.join(ARC_PATH, 'initiated_jobs.csv')
+        local_arc_path_ = local_arc_path if os.path.isdir(local_arc_path) else ARC_PATH
+        csv_path = os.path.join(local_arc_path_, 'initiated_jobs.csv')
         if os.path.isfile(csv_path):
             # check that this is the updated version
             with open(csv_path, 'r') as f:
@@ -626,7 +650,8 @@ class JobAdapter(ABC):
         Write an initiated ARC job into the initiated_jobs.csv file.
         """
         if not self.testing:
-            csv_path = os.path.join(ARC_PATH, 'initiated_jobs.csv')
+            local_arc_path_ = local_arc_path if os.path.isdir(local_arc_path) else ARC_PATH
+            csv_path = os.path.join(local_arc_path_, 'initiated_jobs.csv')
             with open(csv_path, 'a') as f:
                 writer = csv.writer(f, dialect='excel')
                 row = [self.job_num, self.project, self.species_label, self.job_type, self.is_ts, self.charge,
@@ -641,7 +666,8 @@ class JobAdapter(ABC):
         if not self.testing:
             if self.job_status[0] != 'done' or self.job_status[1]['status'] != 'done':
                 self.determine_job_status()
-            csv_path = os.path.join(ARC_PATH, 'completed_jobs.csv')
+            local_arc_path_ = local_arc_path if os.path.isdir(local_arc_path) else ARC_PATH
+            csv_path = os.path.join(local_arc_path_, 'completed_jobs.csv')
             if os.path.isfile(csv_path):
                 # check that this is the updated version
                 with open(csv_path, 'r') as f:
@@ -658,7 +684,7 @@ class JobAdapter(ABC):
                            'final_time', 'run_time', 'job_status_(server)', 'job_status_(ESS)',
                            'ESS troubleshooting methods used']
                     writer.writerow(row)
-            csv_path = os.path.join(ARC_PATH, 'completed_jobs.csv')
+            csv_path = os.path.join(local_arc_path_, 'completed_jobs.csv')
             with open(csv_path, 'a') as f:
                 writer = csv.writer(f, dialect='excel')
                 job_type = self.job_type
@@ -694,7 +720,7 @@ class JobAdapter(ABC):
             total_submit_script_memory = self.job_memory_gb * 1024 * 1.1  # MB
         # Determine amount of memory in submit script based on cluster job scheduling system.
         cluster_software = servers[self.server].get('cluster_soft').lower()
-        if cluster_software in ['oge', 'sge', 'pbs']:
+        if cluster_software in ['oge', 'sge', 'pbs', 'htcondor']:
             # In SGE, "-l h_vmem=5000M" specifies the amount of maximum memory required for all cores to be 5000 MB.
             self.submit_script_memory = math.ceil(total_submit_script_memory)  # in MB
         if cluster_software in ['pbs']:
