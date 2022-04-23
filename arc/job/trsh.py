@@ -443,7 +443,7 @@ def trsh_negative_freq(label: str,
     neg_freqs_trshed = neg_freqs_trshed if neg_freqs_trshed is not None else list()
     job_types = job_types if job_types is not None else ['rotors']
     output_errors, output_warnings, conformers, current_neg_freqs_trshed = list(), list(), list(), list()
-    factors = [1.1, 1.25, 1.7, 2.5, 5, 10]
+    factors = [0.25, 0.50, 0.75, 1.0, 1.5, 2.5]
     factor = factors[0]
     max_times_to_trsh_neg_freq = len(factors) + 1
     freqs, normal_modes_disp = parse_normal_mode_displacement(path=log_file, raise_error=False)
@@ -475,7 +475,8 @@ def trsh_negative_freq(label: str,
         if len(neg_freqs_idx) == 1 and not len(neg_freqs_trshed):
             # species has one negative frequency, and has not been troubleshooted for it before
             logger.info(f'Species {label} has a negative frequency ({freqs[largest_neg_freq_idx]}). Perturbing its '
-                        f'geometry using the respective vibrational normal mode displacement(s).')
+                        f'geometry using the respective vibrational normal mode displacement(s), '
+                        f'using an amplitude of {factor}.')
             neg_freqs_idx = [largest_neg_freq_idx]  # indices of the negative frequencies to troubleshoot for
         elif len(neg_freqs_idx) == 1 \
                 and any([np.allclose(freqs[0], vf, rtol=1e-04, atol=1e-02) for vf in neg_freqs_trshed]) \
@@ -504,7 +505,7 @@ def trsh_negative_freq(label: str,
         current_neg_freqs_trshed = [round(freqs_list[i], 2) for i in neg_freqs_idx]  # record trshed negative freqs
         xyz = parse_xyz_from_file(log_file)
         for neg_freq_idx in neg_freqs_idx:
-            xyz_1, xyz_2 = displace_xyz(xyz=xyz, displacement=normal_modes_disp[neg_freq_idx])
+            xyz_1, xyz_2 = displace_xyz(xyz=xyz, displacement=normal_modes_disp[neg_freq_idx], amplitude=factor)
             conformers.append(xyz_1)
             conformers.append(xyz_2)
     return current_neg_freqs_trshed, conformers, output_errors, output_warnings
