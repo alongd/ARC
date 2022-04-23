@@ -25,11 +25,7 @@ from arc.job.local import execute_command
 from arc.job.ssh import SSHClient
 from arc.species import ARCSpecies
 from arc.species.conformers import determine_smallest_atom_index_in_scan
-from arc.species.converter import (displace_xyz,
-                                   ics_to_scan_constraints,
-                                   xyz_from_data,
-                                   xyz_to_coords_list,
-                                   )
+from arc.species.converter import (displace_xyz, ics_to_scan_constraints)
 from arc.species.species import determine_rotor_symmetry
 from arc.species.vectors import calculate_dihedral_angle, calculate_distance
 from arc.parser import (parse_1d_scan_coords,
