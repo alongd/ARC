@@ -250,7 +250,6 @@ def _determine_job_id(stdout: List[str],
     job_id = None
     cluster_soft = cluster_soft or servers['local']['cluster_soft']
     cluster_soft = cluster_soft.lower()
-    logger.info(f'in _determine_job_id {cluster_soft}, {stdout[0].lower()}')
     if cluster_soft in ['oge', 'sge'] and 'submitted' in stdout[0].lower():
         job_id = stdout[0].split()[2]
     elif cluster_soft == 'slurm' and 'submitted' in stdout[0].lower():
