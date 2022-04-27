@@ -816,7 +816,7 @@ class Scheduler(object):
         #           directed_scans=directed_scans,
         #           directed_dihedrals=directed_dihedrals,
         #           )
-        label = label or reactions[0].ts_species.label  # todo: think about calculating a batch of reactions
+        label = label or reactions[0].ts_species.label  # todo: think about calculating a batch of reactions # Todo
         if conformer is None and tsg is None:
             # this is NOT a conformer DFT job nor a TS guess job
             self.running_jobs[label] = list() if label not in self.running_jobs else self.running_jobs[label]
