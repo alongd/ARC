@@ -1,11 +1,18 @@
-name: continuous integration
+name: CI
 
 on:
   push:
+    branches:
+      - '*'
   pull_request:
     branches:
       - main
     types: [opened, synchronize, reopened, ready_for_review, review_requested]
+  schedule:
+    - cron: '0 0 * * *'
+
+env:
+  CACHE_NUMBER: 0  # increase to reset conda env cache manually
 
 jobs:
   build:
@@ -17,16 +24,30 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    - name: Set up miniconda Python 3.7
+    - name: Setup Mambaforge Python 3.7
       uses: conda-incubator/setup-miniconda@v2
       with:
-        environment-file: environment.yml
+        miniforge-variant: Mambaforge
+        miniforge-version: latest
         activate-environment: arc_env
         python-version: 3.7
-        auto-activate-base: false
+        use-mamba: true
+
+    - name: Set cache date
+      run: echo "DATE=$(date +'%Y%m%d')" >> $GITHUB_ENV
+
+    - uses: actions/cache@v2
+      with:
+        path: /usr/share/miniconda3/envs/my-env
+        key: linux-64-conda-${{ hashFiles('environment.yml') }}-${{ env.DATE }}-${{ env.CACHE_NUMBER }}
+      id: cache
+
+    - name: Update environment
+      run: mamba env update -n arc_env -f environment.yml
+      if: steps.cache.outputs.cache-hit != 'true'
 
     - name: Install codecov
-      run: conda install -y -c conda-forge codecov
+      run: mamba install -y -c conda-forge codecov
 
     - name: Install dependencies
       run: |

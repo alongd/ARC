@@ -19,7 +19,7 @@ echo $PYTHONPATH
 # create the environment
 echo "Creating the AutoTST environment..."
 conda deactivate
-conda env create -f environment.yml -y
+mamba env create -f environment.yml -y
 conda activate tst_env
 conda install -c anaconda yaml -y
 conda deactivate

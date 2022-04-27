@@ -46,7 +46,7 @@ dependencies:
   - rmg::symmetry
   - xlrd
   - xlwt
-  - anaconda::sphinx_rtd_theme
+  - conda-forge::sphinx_rtd_theme
   - anaconda::paramiko >=2.6.0
   - conda-forge::py3dmol >= 0.8.0
   - conda-forge::ase >=3.15.0
