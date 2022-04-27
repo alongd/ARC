@@ -33,9 +33,14 @@ class TestLocal(unittest.TestCase):
 
     def test_determine_job_id(self):
         """Test determining a job ID from the stdout of a job submission command."""
+        # Slurm
+        stdout_1 = ['Submitted batch job 17670585']
+        job_id = local._determine_job_id(stdout_1, cluster_soft='slurm')
+        self.assertEqual(job_id, '17670585')
+
         # HTCondor
-        stdout_1 = [['Submitting job(s).', '1 job(s) submitted to cluster 5263.']]
-        job_id = local._determine_job_id(stdout_1[0])
+        stdout_2 = ['Submitting job(s).', '1 job(s) submitted to cluster 5263.']
+        job_id = local._determine_job_id(stdout_2)
         self.assertEqual(job_id, '5263')
 
     def test_get_last_modified_time(self):
