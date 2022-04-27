@@ -347,11 +347,12 @@ class JobAdapter(ABC):
             if self.species is not None:
                 if len(self.species) > 1:
                     self.iterate_by.append('species')
-                for species in self.species:
-                    if job_type == 'conformers':
+                if job_type == 'conformers':
+                    if self.species is not None and sum(len(species.conformers) for species in self.species) > 10:
                         self.iterate_by.append('conformers')
-                        self.number_of_processes += len(species.conformers)
-                    elif job_type in ['sp', 'opt', 'freq', 'optfreq', 'composite', 'ornitals', 'onedmin', 'irc']:
+                        self.number_of_processes += len(self.species.conformers)
+                for species in self.species:
+                    if job_type in ['sp', 'opt', 'freq', 'optfreq', 'composite', 'ornitals', 'onedmin', 'irc']:
                         self.number_of_processes += 1
                     elif job_type == 'scan':
                         self.iterate_by.append('scan')
