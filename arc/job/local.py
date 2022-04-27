@@ -213,12 +213,10 @@ def parse_running_jobs_ids(stdout: List[str],
 
 def submit_job(path):
     """
-    Submit a job
-    `path` is the job's folder path, where the submit script is located (without the submit script file name)
+    Submit a job.
+    `path` is the job's folder path, where the submit script is located (without the submit script file name).
     """
-    job_status = ''
-    job_id = 0
-    cluster_soft = servers['local']['cluster_soft'].lower()
+    job_status, job_id = '', None
     cmd = f"cd {path}; {submit_command[servers['local']['cluster_soft']]} " \
           f"{submit_filenames[servers['local']['cluster_soft']]}"
     stdout, stderr = execute_command(cmd)
@@ -230,7 +228,30 @@ def submit_job(path):
     if len(stderr) > 0 or len(stdout) == 0:
         logger.warning(f'Got the following error when trying to submit job:\n{stderr}.')
         job_status = 'errored'
-    elif cluster_soft in ['oge', 'sge'] and 'submitted' in stdout[0].lower():
+    else:
+        job_id = _determine_job_id(stdout)
+    job_status = 'running' if job_id is not None else job_status
+    return job_status, job_id
+
+
+def _determine_job_id(stdout: List[str],
+                      cluster_soft: Optional[str] = None,
+                      ) -> Optional[str]:
+    """
+    A helper function for determining the job ID from the returned stdout of a submit command.
+
+    Args:
+        stdout (List[str]): The returned stdout of a submit command.
+        cluster_soft (str, optional): The cluster software.
+
+    Returns:
+        Optional[str]: The submitted job ID.
+    """
+    job_id = None
+    cluster_soft = cluster_soft or servers['local']['cluster_soft']
+    cluster_soft = cluster_soft.lower()
+    logger.info(f'in _determine_job_id {cluster_soft}, {stdout[0].lower()}')
+    if cluster_soft in ['oge', 'sge'] and 'submitted' in stdout[0].lower():
         job_id = stdout[0].split()[2]
     elif cluster_soft == 'slurm' and 'submitted' in stdout[0].lower():
         job_id = stdout[0].split()[3]
@@ -243,8 +264,7 @@ def submit_job(path):
             job_id = stdout[1].split()[-1].split('.')[0]
     else:
         raise ValueError(f'Unrecognized cluster software: {cluster_soft}')
-    job_status = 'running' if job_id else job_status
-    return job_status, job_id
+    return job_id
 
 
 def get_last_modified_time(file_path_1: str,
