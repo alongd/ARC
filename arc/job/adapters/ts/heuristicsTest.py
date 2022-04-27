@@ -453,6 +453,7 @@ class TestHeuristicsAdapter(unittest.TestCase):
         self.assertEqual(rxn7.ts_species.charge, 0)
         self.assertEqual(rxn7.ts_species.multiplicity, 2)
         self.assertEqual(len(rxn7.ts_species.ts_guesses), 1)  # No dihedral scans for H attacking at 180 degrees.
+        print(rxn7.ts_species.ts_guesses[0].initial_xyz)
         self.assertTrue(almost_equal_coords(rxn7.ts_species.ts_guesses[0].initial_xyz,
                                             {'symbols': ('C', 'C', 'O', 'H', 'H', 'H', 'H', 'H'),
                                              'isotopes': (12, 12, 16, 1, 1, 1, 1, 1),
