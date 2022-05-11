@@ -311,8 +311,13 @@ def rename_output(local_file_path: str, software: str) -> None:
         local_file_path (str): The full path to the output.out file.
         software (str): The software used for the job by which the original output file name was determined.
     """
+    logger.info(f'in local rename_output, local_file_path: {local_file_path}, software: {software}')
     software = software.lower()
+    logger.info(f'Looking for file: {os.path.join(os.path.dirname(local_file_path), output_filenames[software])}')
+    logger.info(f'Found? {os.path.isfile(os.path.join(os.path.dirname(local_file_path), output_filenames[software]))}')
     if os.path.isfile(os.path.join(os.path.dirname(local_file_path), output_filenames[software])):
+        logger.info('Yes, found!')
+        logger.info(f'Renaming {os.path.join(os.path.dirname(local_file_path), output_filenames[software])} as {local_file_path}')
         shutil.move(src=os.path.join(os.path.dirname(local_file_path), output_filenames[software]), dst=local_file_path)
 
 
