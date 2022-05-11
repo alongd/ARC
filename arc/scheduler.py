@@ -894,6 +894,8 @@ class Scheduler(object):
 
         if not os.path.exists(job.local_path_to_output_file) and not job.execution_type == 'incore':
             job.rename_output_file()
+            logger.info(os.path.join(os.path.dirname(job.local_path_to_output_file), "input.log"))
+            logger.info(f'File found in Scheduler? {os.path.isfile(os.path.join(os.path.dirname(job.local_path_to_output_file), "input.log"))}')
         if not os.path.exists(job.local_path_to_output_file) and not job.execution_type == 'incore':
             if 'restart_due_to_file_not_found' in job.ess_trsh_methods:
                 job.job_status[0] = 'errored'
