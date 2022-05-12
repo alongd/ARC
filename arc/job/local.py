@@ -319,6 +319,18 @@ def rename_output(local_file_path: str, software: str) -> None:
         logger.info('Yes, found!')
         logger.info(f'Renaming {os.path.join(os.path.dirname(local_file_path), output_filenames[software])} as {local_file_path}')
         shutil.move(src=os.path.join(os.path.dirname(local_file_path), output_filenames[software]), dst=local_file_path)
+    else:
+        logger.info('Not found...')
+        time.sleep(10)
+        logger.info('slept for 10 s')
+        if os.path.isfile(os.path.join(os.path.dirname(local_file_path), output_filenames[software])):
+            logger.info('Yes, found!')
+            logger.info(f'Renaming {os.path.join(os.path.dirname(local_file_path), output_filenames[software])} as {local_file_path}')
+            shutil.move(src=os.path.join(os.path.dirname(local_file_path), output_filenames[software]), dst=local_file_path)
+        else:
+            logger.info('Not found for the 2nd time... ..... .... ...')
+
+
 
 
 def change_mode(mode: str,
