@@ -1109,6 +1109,8 @@ def openbabel_force_field_on_rdkit_conformers(label, rd_mol, force_field='MMFF94
             - Entries are float numbers representing the energies (in kJ/mol).
     """
     xyzs, energies = list(), list()
+    if not rd_mol.GetNumConformers():
+        return xyzs, energies
     # Set up Openbabel input and output format
     obconversion = ob.OBConversion()
     obconversion.SetInAndOutFormats('xyz', 'xyz')
@@ -1316,8 +1318,10 @@ def embed_rdkit(label, mol, num_confs=None, xyz=None):
         raise ConformerError(f'Argument mol can be either an RMG Molecule or an RDKit RDMol object. '
                              f'Got {type(mol)} for {label}')
     if num_confs is not None:
-        Chem.AllChem.EmbedMultipleConfs(rd_mol, numConfs=num_confs, randomSeed=1, enforceChirality=True)
-        # Chem.AllChem.EmbedMultipleConfs(rd_mol, numConfs=num_confs, randomSeed=15, enforceChirality=False)
+        try:
+            Chem.AllChem.EmbedMultipleConfs(rd_mol, numConfs=num_confs, randomSeed=1, enforceChirality=True)
+        except:
+            logger.warning(f'Could not embed conformers using RDKit for {label}')
     elif xyz is not None:
         rd_conf = Chem.Conformer(rd_mol.GetNumAtoms())
         for i in range(rd_mol.GetNumAtoms()):
