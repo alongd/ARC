@@ -2155,7 +2155,7 @@ class Scheduler(object):
                         self.output[label]['isomorphism'] += 'composite did not pass isomorphism check; '
                     success &= is_isomorphic
                 return success
-            elif not self.species_dict[label].is_ts and self.trsh_ess_jobs:
+            elif not self.species_dict[label].is_ts:
                 self.troubleshoot_negative_freq(label=label, job=job)
         if job.job_status[1]['status'] != 'done' or (not freq_ok and not self.species_dict[label].is_ts):
             self.troubleshoot_ess(label=label, job=job, level_of_theory=job.level)
@@ -2226,7 +2226,7 @@ class Scheduler(object):
                     plotter.draw_structure(species=self.species_dict[label],
                                            project_directory=self.project_directory,
                                            method='draw_3d')
-        elif self.trsh_ess_jobs:
+        else:
             self.troubleshoot_opt_jobs(label=label)
         if success:
             return True  # run freq / sp / scan jobs on this optimized geometry
@@ -2280,7 +2280,7 @@ class Scheduler(object):
                                     f'Status is:\n{self.species_dict[label].ts_checks}\n'
                                     f'Searching for a better TS conformer...')
                         self.switch_ts(label)
-            elif not self.species_dict[label].is_ts and self.trsh_ess_jobs:
+            elif not self.species_dict[label].is_ts:
                 # Only trsh neg freq here for non TS species, trsh TS species is done in check_negative_freq().
                 self.troubleshoot_negative_freq(label=label, job=job)
         if job.job_status[1]['status'] != 'done' or (not freq_ok and not self.species_dict[label].is_ts):
@@ -2872,6 +2872,11 @@ class Scheduler(object):
             label (str): The species label.
             job (JobAdapter): The frequency job object.
         """
+        if not self.trsh_ess_jobs:
+            logger.warning(f'Not troubleshooting negative freq for {label} and job {job.job_name}. '
+                           f'To enable troubleshooting, set the "trsh_ess_jobs" to "True".')
+            return None
+
         current_neg_freqs_trshed, confs, output_errors, output_warnings = trsh_negative_freq(
             label=label, log_file=job.local_path_to_output_file,
             neg_freqs_trshed=self.species_dict[label].neg_freqs_trshed, job_types=self.job_types)
@@ -2923,6 +2928,11 @@ class Scheduler(object):
             - ``True`` if the troubleshooting is valid.
             - The actions are applied in the troubleshooting.
         """
+        if not self.trsh_ess_jobs:
+            logger.warning(f'Not troubleshooting failed scan job {job.job_name}. To enable troubleshooting, '
+                           f'set the "trsh_ess_jobs" to "True".')
+            return False, dict()
+
         label = job.species_label
         trsh_success = False
         actual_actions = dict()  # If troubleshooting fails, there will be no action.
@@ -3044,6 +3054,11 @@ class Scheduler(object):
         Args:
             label (str): The species label.
         """
+        if not self.trsh_ess_jobs:
+            logger.warning(f'Not troubleshooting failed opt job for {label}. To enable troubleshooting, set the '
+                           f'"trsh_ess_jobs" to "True".')
+            return None
+
         previous_job_num, latest_job_num = -1, -1
         job = None
         for job_name in self.job_dict[label]['opt'].keys():  # get the latest Job object for the species / TS
@@ -3209,6 +3224,11 @@ class Scheduler(object):
         Args:
             label (str): The species label.
         """
+        if not self.trsh_ess_jobs:
+            logger.warning(f'Not troubleshooting failed conformer job for {label}. To enable troubleshooting, set the '
+                           f'"trsh_ess_jobs" to "True".')
+            return None
+
         if self.species_dict[label].is_ts:
             raise SchedulerError('The troubleshoot_conformer_isomorphism() method does not yet deal with TSs.')
 
