@@ -1671,7 +1671,10 @@ def rdkit_conf_from_mol(mol: Molecule,
         raise ConverterError('The xyz argument seem to be of wrong type. Expected a dictionary, '
                              'got\n{0}\nwhich is a {1}'.format(xyz, type(xyz)))
     rd_mol = to_rdkit_mol(mol=mol, remove_h=False)
-    Chem.AllChem.EmbedMolecule(rd_mol)
+    try:
+        Chem.AllChem.EmbedMolecule(rd_mol)
+    except:
+        pass
     conf = None
     if rd_mol.GetNumConformers():
         conf = rd_mol.GetConformer(id=0)
