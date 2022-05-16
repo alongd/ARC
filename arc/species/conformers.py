@@ -1110,6 +1110,7 @@ def openbabel_force_field_on_rdkit_conformers(label, rd_mol, force_field='MMFF94
     """
     xyzs, energies = list(), list()
     if not rd_mol.GetNumConformers():
+        logger.warning(f'Could not generate conformers for {label} via OpenBabel')
         return xyzs, energies
     # Set up Openbabel input and output format
     obconversion = ob.OBConversion()
@@ -1417,13 +1418,17 @@ def rdkit_force_field(label: str,
         if optimize:
             v, j = 1, 0
             while v == 1 and j < 200:  # v == 1: continue, v == 0: enough steps, v == -1: unable to set up
-                v = Chem.AllChem.MMFFOptimizeMolecule(rd_mol,
-                                                      mmffVariant=force_field,
-                                                      confId=i,
-                                                      maxIters=500,
-                                                      ignoreInterfragInteractions=False,
-                                                      )
-                j += 1
+                try:
+                    v = Chem.AllChem.MMFFOptimizeMolecule(rd_mol,
+                                                          mmffVariant=force_field,
+                                                          confId=i,
+                                                          maxIters=500,
+                                                          ignoreInterfragInteractions=False,
+                                                          )
+                except:
+                    pass
+                else:
+                    j += 1
         mol_properties = Chem.AllChem.MMFFGetMoleculeProperties(rd_mol, mmffVariant=force_field)
         if mol_properties is not None:
             ff = Chem.AllChem.MMFFGetMoleculeForceField(rd_mol, mol_properties, confId=i)
@@ -1443,7 +1448,7 @@ def rdkit_force_field(label: str,
                                f'for {label}. This is often slower.')
                 if try_ob:
                     xyzs, energies = openbabel_force_field_on_rdkit_conformers(label,
-                                                                               mol,
+                                                                               rd_mol,
                                                                                force_field=force_field,
                                                                                optimize=optimize,
                                                                                )
@@ -2016,6 +2021,9 @@ def determine_chirality(conformers, label, mol, force=False):
             continue
         new_xyz = replace_n_with_c_in_xyz(label, mol, conformer['xyz'], chiral_nitrogen_centers, elements_to_insert)
         rd_mol = embed_rdkit(label, new_mol, xyz=new_xyz)
+        if not rd_mol.GetNumConformers():
+            continue
+        rd_mol.UpdatePropertyCache(strict=False)
         Chem.rdmolops.AssignStereochemistryFrom3D(rd_mol, 0)
         for i, rd_atom in enumerate(rd_mol.GetAtoms()):
             rd_atom_props_dict = rd_atom.GetPropsAsDict()
