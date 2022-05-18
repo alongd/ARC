@@ -859,7 +859,7 @@ class Scheduler(object):
                 logger.error('Setting it to Orca')
                 level.software = 'orca'
             elif 'molpro' in available_ess:
-                logger.error('available_ess it to Molpro')
+                logger.error('Setting it to Molpro')
                 level.software = 'molpro'
             elif 'terachem' in available_ess:
                 logger.error('Setting it to TeraChem')
@@ -2507,7 +2507,7 @@ class Scheduler(object):
         Check an IRC job and perform post-job tasks.
 
         Todo:
-            Need to check isomorphism !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            Need to check isomorphism
 
         Args:
             label (str): The species label.
