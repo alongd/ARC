@@ -20,7 +20,7 @@ def sum_time_delta(timedelta_list: List[datetime.timedelta]) -> datetime.timedel
     """
     result = datetime.timedelta(0)
     for timedelta in timedelta_list:
-        if timedelta is not None:
+        if type(timedelta) == type(result):
             result += timedelta
     return result
 
