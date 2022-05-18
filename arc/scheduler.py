@@ -1381,8 +1381,7 @@ class Scheduler(object):
         # Spawn post sp actions if this is a composite job.
         if composite and self.composite_method:
             self.post_sp_actions(label=label,
-                                 sp_path=os.path.join(self.job_dict[label]['composite'][job_name].local_path,
-                                                      'output.out'))
+                                 sp_path=self.job_dict[label]['composite'][job_name].local_path_to_output_file)
 
         # Spawn orbitals job.
         if self.job_types['orbitals'] and 'orbitals' not in self.job_dict[label]:
@@ -2065,7 +2064,7 @@ class Scheduler(object):
                     aux = f' {tsg.errors}.' if tsg.errors else '.'
                     logger.info(f'TS guess {tsg.index:2} for {label}. '
                                 f'Method: {tsg.method:10}, '
-                                f'relative energy: {tsg.energy:.2f} kJ/mol, '
+                                f'relative energy: {tsg.energy:8.2f} kJ/mol, '
                                 f'guess ex time: {execution_time}{im_freqs}'
                                 f'{aux}')
                     # for TSs, only use `draw_3d()`, not `show_sticks()` which gets connectivity wrong:
