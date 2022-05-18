@@ -2,7 +2,7 @@
 #    pip install -r requirements.txt
 
 ase>=3.15.0
-cclib>=1.6
+cclib>=1.7.0
 mako
 matplotlib>=2.2.2
 numpy==1.15.4
