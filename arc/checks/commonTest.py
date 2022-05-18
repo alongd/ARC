@@ -21,11 +21,16 @@ class TestChecks(unittest.TestCase):
         dt2 = datetime.timedelta(days=0, minutes=0, seconds=0)
         dt3 = datetime.timedelta(days=0, minutes=1, seconds=15)
         dt4 = datetime.timedelta(days=10, minutes=1, seconds=15, microseconds=300)
+        fake_dt5 = None
+        fake_dt6 = 'fake'
+        fake_dt7 = 18.52
         self.assertEqual(common.sum_time_delta([]), datetime.timedelta(days=0, minutes=0, seconds=0))
         self.assertEqual(common.sum_time_delta([dt1]), datetime.timedelta(days=0, minutes=0, seconds=0))
         self.assertEqual(common.sum_time_delta([dt1, dt2]), datetime.timedelta(days=0, minutes=0, seconds=0))
         self.assertEqual(common.sum_time_delta([dt1, dt3]), datetime.timedelta(days=0, minutes=1, seconds=15))
         self.assertEqual(common.sum_time_delta([dt3, dt4]), datetime.timedelta(days=10, minutes=2, seconds=30, microseconds=300))
+        self.assertEqual(common.sum_time_delta([dt3, fake_dt5, fake_dt6, fake_dt7]),
+                         datetime.timedelta(days=0, minutes=1, seconds=15))
 
     def test_get_i_from_job_name(self):
         """Test the get_i_from_job_name() function"""
