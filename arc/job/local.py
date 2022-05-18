@@ -236,7 +236,7 @@ def submit_job(path: str,
         logger.warning(f'Got the following error when trying to submit job:\n{stderr}.')
         job_status = 'errored'
     else:
-        job_id = _determine_job_id
+        job_id = _determine_job_id(stdout=stdout)
     job_status = 'running' if job_id else job_status
     return job_status, job_id
 
@@ -303,7 +303,9 @@ def write_file(file_path: str, file_string: str) -> None:
         f.write(file_string)
 
 
-def rename_output(local_file_path: str, software: str) -> None:
+def rename_output(local_file_path: str,
+                  software: str,
+                  ) -> None:
     """
     Rename the output file to "output.out" for consistency between software.
 
@@ -312,6 +314,18 @@ def rename_output(local_file_path: str, software: str) -> None:
         software (str): The software used for the job by which the original output file name was determined.
     """
     software = software.lower()
+
+    for i in range(5):
+        if not os.path.isfile(local_file_path) \
+                and not os.path.isfile(os.path.join(os.path.dirname(local_file_path), output_filenames[software])):
+            # Wait for file to be transferred on the server (the head node might be busy).
+            time.sleep(6)
+        else:
+            break
+    else:
+        # Nothing to rename.
+        return None
+
     if os.path.isfile(os.path.join(os.path.dirname(local_file_path), output_filenames[software])):
         shutil.move(src=os.path.join(os.path.dirname(local_file_path), output_filenames[software]), dst=local_file_path)
 
