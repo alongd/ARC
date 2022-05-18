@@ -1,4 +1,6 @@
-# temporarily change directory to install software (don't use "|| exit" here)
+# Note: this script assumes the user is running it from the root ARC folder.
+
+# Temporarily change directory to install software (don't use "|| exit" here)
 pushd .
 
 # install dependencies
