@@ -193,7 +193,6 @@ class TestParser(unittest.TestCase):
               [-0.35, -0.03, 0.54], [-0.39, -0.08, -0.65], [0.0, -0.0, 0.0], [0.0, -0.0, 0.0]],
              [[0.0, 0.0, 0.01], [0.0, -0.05, -0.09], [0.01, -0.0, 0.0], [-0.01, 0.0, 0.08],
               [0.43, 0.01, -0.61], [-0.36, -0.06, -0.54], [-0.0, 0.0, -0.0], [-0.0, -0.0, 0.0]]], np.float64)
-        print(normal_modes_disp.tolist())
         np.testing.assert_almost_equal(normal_modes_disp, expected_normal_modes_disp_2)
 
     def test_parse_xyz_from_file(self):
