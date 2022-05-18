@@ -256,9 +256,6 @@ class GCNAdapter(JobAdapter):
         """
         Execute a job incore.
         """
-        if not HAS_GCN:
-            raise ModuleNotFoundError(f'Could not import GCN, make sure it is properly installed.\n'
-                                      f'See {self.url} for more information, or use the Makefile provided with ARC.')
         self._log_job_execution()
         self.initial_time = self.initial_time if self.initial_time else datetime.datetime.now()
         self.reactions = [self.reactions] if not isinstance(self.reactions, list) else self.reactions
