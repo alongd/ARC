@@ -184,7 +184,7 @@ class ArkaneAdapter(StatmechAdapter):
                                               when thermodynamic properties of reactants and products were still not computed.
             verbose (bool, optional): Whether to log messages. Default: ``True``.
         """
-        arkane.input.transition_state_dict = dict()
+        arkane.input.transition_state_dict, arkane.input.reaction_dict = dict(), dict()
         ts_species = self.species_dict[self.reaction.ts_label]
         if self.output_dict[ts_species.label]['convergence']:
             success = True
