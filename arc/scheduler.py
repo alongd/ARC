@@ -505,22 +505,19 @@ class Scheduler(object):
         self.run_conformer_jobs()
         self.spawn_ts_jobs()  # If all reactants/products are already known (Arkane yml or restart), spawn TS searches.
         while self.running_jobs != {}:
-            logger.debug(f'Currently running jobs:\n{pprint.pformat(self.running_jobs)}')
             self.timer = True
-            job_list = list()
             for label in self.unique_species_labels:
                 if self.output[label]['convergence'] is False:
-                    # skip unconverged species
+                    # Skip unconverged species.
                     if label in self.running_jobs:
                         del self.running_jobs[label]
                     continue
-                # look for completed jobs and decide what jobs to run next
+                # Look for completed jobs and decide what jobs to run next.
                 self.get_server_job_ids()  # updates ``self.server_job_ids``
                 self.get_completed_incore_jobs()  # updates ``self.completed_incore_jobs``
-                try:
-                    job_list = self.running_jobs[label]
-                except KeyError:
+                if label not in self.running_jobs.keys():
                     continue
+                job_list = self.running_jobs[label]
                 for job_name in job_list:
                     if 'conformer' in job_name:
                         i = get_i_from_job_name(job_name)
@@ -555,9 +552,7 @@ class Scheduler(object):
                         job = self.job_dict[label]['tsg'][get_i_from_job_name(job_name)]
                         if not (job.job_id in self.server_job_ids and job.job_id not in self.completed_incore_jobs):
                             # This is a successfully completed tsg job. It may have resulted in several TSGuesses.
-                            successful_server_termination = self.end_job(job=job, label=label, job_name=job_name)
-                            if successful_server_termination:
-                                self.parse_tsg()
+                            self.end_job(job=job, label=label, job_name=job_name)
                             # Just terminated a tsg job.
                             # Are there additional tsg jobs currently running for this species?
                             for spec_jobs in job_list:
@@ -599,13 +594,19 @@ class Scheduler(object):
                             break
                     elif 'composite' in job_name:
                         job = self.job_dict[label]['composite'][job_name]
+                        logger.info(f'\n\n\n\n+++++++\nChecking composite job {job_name} ID {job.job_id}')
+                        logger.info(f'server job IDs: {self.server_job_ids}')
                         if not (job.job_id in self.server_job_ids and job.job_id not in self.completed_incore_jobs):
+                            logger.info('not running any more')
                             successful_server_termination = self.end_job(job=job, label=label, job_name=job_name)
+                            logger.info(f'successful_server_termination: {successful_server_termination}')
                             if successful_server_termination:
                                 success = self.parse_composite_geo(label=label, job=job)
                                 if success:
+                                    logger.info(f'success: {success}')
                                     self.spawn_post_opt_jobs(label=label, job_name=job_name)
                             self.timer = False
+                            logger.info('\n\n\n\n')
                             break
                     elif 'directed_scan' in job_name:
                         job = self.job_dict[label]['directed_scan'][job_name]
@@ -886,13 +887,13 @@ class Scheduler(object):
                 job.determine_job_status()  # Also downloads the output file.
             except IOError:
                 if job.job_type not in ['orbitals']:
-                    logger.warning(f'Tried to determine status of job {job.job_name}, but it seems like the job never ran. '
-                                   f'Re-running job.')
+                    logger.warning(f'Tried to determine status of job {job.job_name}, '
+                                   f'but it seems like the job never ran. Re-running job.')
                     self._run_a_job(job=job, label=label)
                 if job_name in self.running_jobs[label]:
                     self.running_jobs[label].pop(self.running_jobs[label].index(job_name))
 
-        if not os.path.exists(job.local_path_to_output_file) and not job.execution_type == 'incore':
+        if not os.path.isfile(job.local_path_to_output_file) and not job.execution_type == 'incore':
             job.rename_output_file()
         if not os.path.exists(job.local_path_to_output_file) and not job.execution_type == 'incore':
             if 'restart_due_to_file_not_found' in job.ess_trsh_methods:
@@ -1386,8 +1387,7 @@ class Scheduler(object):
         # Spawn post sp actions if this is a composite job.
         if composite and self.composite_method:
             self.post_sp_actions(label=label,
-                                 sp_path=os.path.join(self.job_dict[label]['composite'][job_name].local_path,
-                                                      'output.out'))
+                                 sp_path=self.job_dict[label]['composite'][job_name].local_path_to_output_file)
 
         # Spawn orbitals job.
         if self.job_types['orbitals'] and 'orbitals' not in self.job_dict[label]:
@@ -2070,7 +2070,7 @@ class Scheduler(object):
                     aux = f' {tsg.errors}.' if tsg.errors else '.'
                     logger.info(f'TS guess {tsg.index:2} for {label}. '
                                 f'Method: {tsg.method:10}, '
-                                f'relative energy: {tsg.energy:.2f} kJ/mol, '
+                                f'relative energy: {tsg.energy:8.2f} kJ/mol, '
                                 f'guess ex time: {execution_time}{im_freqs}'
                                 f'{aux}')
                     # for TSs, only use `draw_3d()`, not `show_sticks()` which gets connectivity wrong:
@@ -2300,7 +2300,8 @@ class Scheduler(object):
                                              freq_scale_factor=self.freq_scale_factor,
                                              )
                     if switch_ts is True:
-                        logger.error(f'Could not calculate a rate coefficient for reaction {rxn.label}, switching TS.')
+                        logger.error(f'Could not calculate a rate coefficient for reaction {rxn.label}. '
+                                     f'Check status is:\n{rxn.ts_species.ts_checks}.\nSwitching TS.\n')
                         self.switch_ts(rxn.ts_label)
 
     def check_negative_freq(self,
