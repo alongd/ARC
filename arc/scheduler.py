@@ -367,7 +367,7 @@ class Scheduler(object):
                     raise SchedulerError(f'Could not identify a TS species for {rxn}')
                 rxn.ts_species = ts_species
                 # 3. Generate TSGuess objects for all methods, start with the user guesses
-                for i, user_guess in enumerate(rxn.ts_xyz_guess):  # This is a list of use guesses, could be empty.
+                for i, user_guess in enumerate(rxn.ts_xyz_guess):  # This is a list of user guesses, could be empty.
                     ts_species.ts_guesses.append(
                         TSGuess(method=f'user guess {i}',
                                 xyz=user_guess,
