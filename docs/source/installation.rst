@@ -63,6 +63,9 @@ Install dependencies
   (`Van de Vijver et al. <https://doi.org/10.1016/j.cpc.2019.106947>`_),
   and `TS-GCN <https://github.com/ReactionMechanismGenerator/TS-GCN.git>`_
   (`Pattanaik et al. <https://chemrxiv.org/articles/Genereting_Transition_States_of_Isomerization_Reactions_with_Deep_Learning/12302084>`_).
+  Note that this should be done on each machine ARC is expected to be executed on.
+  For advanced users: ARC will look for the paths to these repos. If your path on a server in not conventional,
+  you can assist ARC discover your external repos in ``settings.py``.
 - Test ARC by typing ``make test`` under the ARC folder after activating the anaconda `arc_env` environment.
 
 
