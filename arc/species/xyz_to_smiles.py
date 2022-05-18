@@ -121,17 +121,17 @@ def get_ua(max_valence_list: list,
             - Entries represent unsaturation level of atoms (ua).
             - Entries represent the degree of unsaturation per atom (du).
     """
-    ua, du = list(), list()
+    unsaturated_atoms, unsaturation_degre = list(), list()
     for i, (max_valence, valence) in enumerate(zip(max_valence_list, valence_list)):
         if not max_valence - valence > 0:
             continue
-        ua.append(i)
-        du.append(max_valence - valence)
-    return ua, du
+        unsaturated_atoms.append(i)
+        unsaturation_degre.append(max_valence - valence)
+    return unsaturated_atoms, unsaturation_degre
 
 
-def get_bo(ac: np.ndarray,
-           du: list,
+def get_bo(atom_connectivity: np.ndarray,
+           unsaturation_degree: list,
            valences: list,
            ua_pairs: list,
            use_graph: bool = True,
@@ -140,8 +140,8 @@ def get_bo(ac: np.ndarray,
     Get bond orders.
 
     Args:
-        ac (np.ndarray): Atom connectivity.
-        du (list): degree of unsaturation per atom.
+        atom_connectivity (np.ndarray): Atom connectivity.
+        unsaturation_degree (list): degree of unsaturation per atom.
         valences (list): Atom valences.
         ua_pairs (list): List of unsaturated atom pairs.
         use_graph (bool, optional): Whether to use the graph representation of the molecule.
@@ -149,40 +149,40 @@ def get_bo(ac: np.ndarray,
     Returns:
         np.ndarray: Bond orders.
     """
-    bo = ac.copy()
+    bond_orders = atom_connectivity.copy()
     du_save = list()
-    while du_save != du:
+    while du_save != unsaturation_degree:
         for i, j in ua_pairs:
-            bo[i, j] += 1
-            bo[j, i] += 1
-        bo_valence = list(bo.sum(axis=1))
-        du_save = copy.copy(du)
-        ua, du = get_ua(valences, bo_valence)
-        ua_pairs = get_ua_pairs(ua, ac, use_graph=use_graph)[0]
-    return bo
+            bond_orders[i, j] += 1
+            bond_orders[j, i] += 1
+        bo_valence = list(bond_orders.sum(axis=1))
+        du_save = copy.copy(unsaturation_degree)
+        unsaturated_atoms, unsaturation_degree = get_ua(valences, bo_valence)
+        ua_pairs = get_ua_pairs(unsaturated_atoms, atom_connectivity, use_graph=use_graph)[0]
+    return bond_orders
 
 
-def valences_not_too_large(bo: np.ndarray,
+def valences_not_too_large(bond_orders: np.ndarray,
                            valences: list,
                            ) -> bool:
     """
     Check that atomic valences are not too large.
 
     Args:
-        bo (np.ndarray): Bond orders.
+        bond_orders (np.ndarray): Bond orders.
         valences (list): atomic valences.
 
     Returns:
         bool: ``True`` if valences are not too large, ``False`` otherwise.
     """
-    number_of_bonds_list = bo.sum(axis=1)
+    number_of_bonds_list = bond_orders.sum(axis=1)
     for valence, number_of_bonds in zip(valences, number_of_bonds_list):
         if number_of_bonds > valence:
             return False
     return True
 
 
-def is_charge_ok(bo: np.ndarray,
+def is_charge_ok(bond_orders: np.ndarray,
                  charge: int,
                  atomic_valence_electrons_: list,
                  atoms: List[int],
@@ -192,7 +192,7 @@ def is_charge_ok(bo: np.ndarray,
     Check that the overall charge is in agreement with the formal charges of all atoms in the perceived molecule.
 
     Args:
-        bo (np.ndarray): Bond orders.
+        bond_orders (np.ndarray): Bond orders.
         charge (int): The overall molecule charge.
         atomic_valence_electrons_ (list): The number of valence electrons per atom.
         atoms (List[int]): Atoms.
@@ -204,12 +204,12 @@ def is_charge_ok(bo: np.ndarray,
     total_charge = 0
     q_list = list()  # Charge fragment list.
     if allow_charged_fragments:
-        bo_valences = list(bo.sum(axis=1))
+        bo_valences = list(bond_orders.sum(axis=1))
         for i, atom in enumerate(atoms):
             q = get_atomic_charge(atom, atomic_valence_electrons_[atom], bo_valences[i])
             total_charge += q
             if atom == 6:
-                number_of_single_bonds_to_c = list(bo[i, :]).count(1)
+                number_of_single_bonds_to_c = list(bond_orders[i, :]).count(1)
                 if number_of_single_bonds_to_c == 2 and bo_valences[i] == 2:
                     total_charge += 1
                     q = 2
@@ -221,10 +221,10 @@ def is_charge_ok(bo: np.ndarray,
     return charge == total_charge
 
 
-def bo_is_ok(bo: np.ndarray,
-             ac: np.ndarray,
+def bo_is_ok(bond_orders: np.ndarray,
+             atom_connectivity: np.ndarray,
              charge: int,
-             du: list,
+             unsaturation_degree: list,
              atomic_valence_electrons_: list,
              atoms: List[int],
              valences: list,
@@ -234,10 +234,10 @@ def bo_is_ok(bo: np.ndarray,
     Sanity check for perceived bond-orders.
 
     Args:
-        bo (np.ndarray): Bond orders.
-        ac (np.ndarray): Atom connectivity.
+        bond_orders (np.ndarray): Bond orders.
+        atom_connectivity (np.ndarray): Atom connectivity.
         charge (int): Overall charge.
-        du (list): degree of unsaturation per atom.
+        unsaturation_degree (list): degree of unsaturation per atom.
         atomic_valence_electrons_ (list): The number of valence electrons per atom.
         atoms (List[int]): Atoms.
         valences (list): Atom valences. 
@@ -246,10 +246,10 @@ def bo_is_ok(bo: np.ndarray,
     Returns:
         bool: ``True`` if perceived bond-orders make sense, ``False`` otherwise.
     """
-    if not valences_not_too_large(bo, valences):
+    if not valences_not_too_large(bond_orders, valences):
         return False
-    check_sum = (bo - ac).sum() == sum(du)
-    check_charge = is_charge_ok(bo,
+    check_sum = (bond_orders - atom_connectivity).sum() == sum(unsaturation_degree)
+    check_charge = is_charge_ok(bond_orders,
                                 charge,
                                 atomic_valence_electrons_,
                                 atoms,
@@ -322,10 +322,10 @@ def bo2mol(mol,
     }
     for i in range(l1):
         for j in range(i + 1, l1):
-            bo = int(round(bo_matrix[i, j]))
-            if bo == 0:
+            bond_orders = int(round(bo_matrix[i, j]))
+            if bond_orders == 0:
                 continue
-            bt = bond_type_dict.get(bo, Chem.BondType.SINGLE)
+            bt = bond_type_dict.get(bond_orders, Chem.BondType.SINGLE)
             rw_mol.AddBond(i, j, bt)
     mol = rw_mol.GetMol()
     if allow_charged_fragments:
@@ -409,42 +409,42 @@ def set_atomic_radicals(mol,
     return mol
 
 
-def get_bonds(ua: list,
-              ac: np.ndarray,
+def get_bonds(unsaturated_atoms: list,
+              atom_connectivity: np.ndarray,
               ) -> list:
     """
     Get the molecule bonds.
 
     Args:
-        ua (list): Unsaturated atoms.
-        ac (np.ndarray): Atom connectivity.
+        unsaturated_atoms (list): Unsaturated atoms.
+        atom_connectivity (np.ndarray): Atom connectivity.
 
     Returns:
         list: The molecule's bonds.
     """
     bonds = list()
-    for k, i in enumerate(ua):
-        for j in ua[k + 1:]:
-            if ac[i, j] == 1:
+    for k, i in enumerate(unsaturated_atoms):
+        for j in unsaturated_atoms[k + 1:]:
+            if atom_connectivity[i, j] == 1:
                 bonds.append(tuple(sorted([i, j])))
     return bonds
 
 
-def get_ua_pairs(ua: list,
-                 ac: np.ndarray,
+def get_ua_pairs(unsaturated_atoms: list,
+                 atom_connectivity: np.ndarray,
                  use_graph: bool = True,
                  ) -> list:
     """
 
     Args:
-        ua (list): Unsaturated atoms.
-        ac (np.ndarray): Atom connectivity.
+        unsaturated_atoms (list): Unsaturated atoms.
+        atom_connectivity (np.ndarray): Atom connectivity.
         use_graph (bool, optional): Whether to use the graph representation of the molecule.
 
     Returns:
         list: Pairs of unsaturated atoms.
     """
-    bonds = get_bonds(ua, ac)
+    bonds = get_bonds(unsaturated_atoms, atom_connectivity)
     if len(bonds) == 0:
         return [()]
     if use_graph:
@@ -454,7 +454,7 @@ def get_ua_pairs(ua: list,
         return ua_pairs
     max_atoms_in_combo = 0
     ua_pairs = [()]
-    for combo in list(itertools.combinations(bonds, int(len(ua) / 2))):
+    for combo in list(itertools.combinations(bonds, int(len(unsaturated_atoms) / 2))):
         flat_list = [item for sublist in combo for item in sublist]
         atoms_in_combo = len(set(flat_list))
         if atoms_in_combo > max_atoms_in_combo:
@@ -465,7 +465,7 @@ def get_ua_pairs(ua: list,
     return ua_pairs
 
 
-def ac2bo(ac: np.ndarray,
+def ac2bo(atom_connectivity: np.ndarray,
           atoms: list,
           charge: int,
           allow_charged_fragments: bool = True,
@@ -477,7 +477,7 @@ def ac2bo(ac: np.ndarray,
     Acronyms: ua = unsaturated atoms, du = degree of unsaturation, best_bo: B^curr in the figure.
 
     Args:
-        ac (np.ndarray): Atom connectivity.
+        atom_connectivity (np.ndarray): Atom connectivity.
         atoms (List[int]): Entries are integer atomic symbols.
         charge (int): The molecular charge.
         allow_charged_fragments (bool, optional): Whether to allow charged fragments.
@@ -492,7 +492,7 @@ def ac2bo(ac: np.ndarray,
     global atomic_valence_electrons
     # Make a list of valences, e.g. for CO: [[4],[2,1]].
     valences_list_of_lists = []
-    ac_valence = list(ac.sum(axis=1))
+    ac_valence = list(atom_connectivity.sum(axis=1))
     for i, (atomic_num, valence) in enumerate(zip(atoms, ac_valence)):
         # The valence cannot be smaller than the number of neighbours.
         possible_valence = [x for x in atomic_valence[atomic_num] if x >= valence]
@@ -503,33 +503,33 @@ def ac2bo(ac: np.ndarray,
         valences_list_of_lists.append(possible_valence)
     # Convert [[4],[2,1]] to [[4,2],[4,1]].
     valences_list = itertools.product(*valences_list_of_lists)
-    best_bo = ac.copy()
+    best_bo = atom_connectivity.copy()
     for valences in valences_list:
-        ua, du_from_ac = get_ua(valences, ac_valence)
-        check_len = (len(ua) == 0)
+        unsaturated_atoms, du_from_ac = get_ua(valences, ac_valence)
+        check_len = (len(unsaturated_atoms) == 0)
         if check_len:
-            check_bo = bo_is_ok(ac, ac, charge, du_from_ac, atomic_valence_electrons, atoms, valences,
+            check_bo = bo_is_ok(atom_connectivity, atom_connectivity, charge, du_from_ac, atomic_valence_electrons, atoms, valences,
                                 allow_charged_fragments=allow_charged_fragments)
         else:
             check_bo = None
         if check_len and check_bo:
-            return ac, atomic_valence_electrons
-        ua_pairs_list = get_ua_pairs(ua, ac, use_graph=use_graph)
+            return atom_connectivity, atomic_valence_electrons
+        ua_pairs_list = get_ua_pairs(unsaturated_atoms, atom_connectivity, use_graph=use_graph)
         for ua_pairs in ua_pairs_list:
-            bo = get_bo(ac, du_from_ac, valences, ua_pairs, use_graph=use_graph)
-            status = bo_is_ok(bo, ac, charge, du_from_ac, atomic_valence_electrons, atoms, valences,
+            bond_orders = get_bo(atom_connectivity, du_from_ac, valences, ua_pairs, use_graph=use_graph)
+            status = bo_is_ok(bond_orders, atom_connectivity, charge, du_from_ac, atomic_valence_electrons, atoms, valences,
                               allow_charged_fragments=allow_charged_fragments)
-            charge_ok = is_charge_ok(bo, charge, atomic_valence_electrons, atoms,
+            charge_ok = is_charge_ok(bond_orders, charge, atomic_valence_electrons, atoms,
                                      allow_charged_fragments=allow_charged_fragments)
             if status:
-                return bo, atomic_valence_electrons
-            elif bo.sum() >= best_bo.sum() and valences_not_too_large(bo, valences) and charge_ok:
-                best_bo = bo.copy()
+                return bond_orders, atomic_valence_electrons
+            elif bond_orders.sum() >= best_bo.sum() and valences_not_too_large(bond_orders, valences) and charge_ok:
+                best_bo = bond_orders.copy()
     return best_bo, atomic_valence_electrons
 
 
 def ac2mol(mol,
-           ac,
+           atom_connectivity,
            atoms: List[int],
            charge: int,
            allow_charged_fragments: bool = True,
@@ -539,7 +539,7 @@ def ac2mol(mol,
 
     Args:
         mol (RDMol) An rdkit molecule object instance.
-        ac (np.ndarray): Atom connectivity.
+        atom_connectivity (np.ndarray): Atom connectivity.
         atoms (List[int]): Entries are integer atomic symbols.
         charge (int): The molecular charge.
         allow_charged_fragments (bool, optional): Whether to allow charged fragments.
@@ -549,19 +549,19 @@ def ac2mol(mol,
         List[RDMol]: Respective RDKit Molecule object instances.
     """
     # Convert ac matrix to bond order (bo) matrix.
-    bo, atomic_valence_electrons_ = ac2bo(
-        ac,
+    bond_orders, atomic_valence_electrons_ = ac2bo(
+        atom_connectivity,
         atoms,
         charge,
         allow_charged_fragments=allow_charged_fragments,
         use_graph=use_graph,
     )
-    if bo is None or atomic_valence_electrons_ is None:
+    if bond_orders is None or atomic_valence_electrons_ is None:
         return None
     # Add bo connectivity and charge info to mol object.
     mol = bo2mol(
         mol,
-        bo,
+        bond_orders,
         atoms,
         atomic_valence_electrons_,
         charge,
@@ -646,7 +646,7 @@ def xyz2ac_huckel(atomic_num_list,
         conf.SetAtomPosition(i, (xyz[i][0], xyz[i][1], xyz[i][2]))
     mol.AddConformer(conf)
     num_atoms = len(atomic_num_list)
-    ac = np.zeros((num_atoms, num_atoms)).astype(int)
+    atom_connectivity = np.zeros((num_atoms, num_atoms)).astype(int)
     mol_huckel = Chem.Mol(mol)
     mol_huckel.GetAtomWithIdx(0).SetFormalCharge(charge)  # Mol charge arbitrarily added to 1st atom.
     passed, result = rdEHTTools.RunMol(mol_huckel)
@@ -657,9 +657,9 @@ def xyz2ac_huckel(atomic_num_list,
         for j in range(i + 1, num_atoms):
             pair_pop = abs(tri[j, i])
             if pair_pop >= 0.15:  # Arbitrary cutoff for bond. May need adjustment.
-                ac[i, j] = 1
-                ac[j, i] = 1
-    return ac, mol
+                atom_connectivity[i, j] = 1
+                atom_connectivity[j, i] = 1
+    return atom_connectivity, mol
 
 
 def xyz2ac_vdw(atoms,
@@ -682,8 +682,8 @@ def xyz2ac_vdw(atoms,
     for i in range(mol.GetNumAtoms()):
         conf.SetAtomPosition(i, (xyz[i][0], xyz[i][1], xyz[i][2]))
     mol.AddConformer(conf)
-    ac = get_ac(mol)
-    return ac, mol
+    atom_connectivity = get_ac(mol)
+    return atom_connectivity, mol
 
 
 def get_ac(mol,
@@ -691,7 +691,7 @@ def get_ac(mol,
            ):
     """
     Generate an adjacency matrix from atoms and coordinates.
-    ``ac`` is a (num_atoms, num_atoms) matrix with 1 being a covalent bond and 0 represents no bond.
+    ``atom_connectivity`` is a (num_atoms, num_atoms) matrix with 1 being a covalent bond and 0 represents no bond.
 
     Args:
         mol (RDMol): An RDKit Molecule object instance with a 3D conformer.
@@ -703,7 +703,7 @@ def get_ac(mol,
     dmat = Chem.Get3DDistanceMatrix(mol)
     pt = Chem.GetPeriodicTable()
     num_atoms = mol.GetNumAtoms()
-    ac = np.zeros((num_atoms, num_atoms), dtype=int)
+    atom_connectivity = np.zeros((num_atoms, num_atoms), dtype=int)
     for i in range(num_atoms):
         a_i = mol.GetAtomWithIdx(i)
         r_cov_i = pt.GetRcovalent(a_i.GetAtomicNum()) * covalent_factor
@@ -711,9 +711,9 @@ def get_ac(mol,
             a_j = mol.GetAtomWithIdx(j)
             r_cov_j = pt.GetRcovalent(a_j.GetAtomicNum()) * covalent_factor
             if dmat[i, j] <= r_cov_i + r_cov_j:
-                ac[i, j] = 1
-                ac[j, i] = 1
-    return ac
+                atom_connectivity[i, j] = 1
+                atom_connectivity[j, i] = 1
+    return atom_connectivity
 
 
 def chiral_stereo_check(mol):
@@ -754,9 +754,9 @@ def xyz2mol(atoms: List[int],
     """
     # Get the atom connectivity (ac) matrix, list of atomic numbers, molecular charge,
     # and mol object with no connectivity information.
-    ac, mol = xyz2ac(atoms, coordinates, charge, use_huckel=use_huckel)
-    # Convert ac to bond order matrix and add connectivity and charge info to a mol object.
-    new_mols = ac2mol(mol, ac, atoms, charge,
+    atom_connectivity, mol = xyz2ac(atoms, coordinates, charge, use_huckel=use_huckel)
+    # Convert atom_connectivity to bond order matrix and add connectivity and charge info to a mol object.
+    new_mols = ac2mol(mol, atom_connectivity, atoms, charge,
                       allow_charged_fragments=allow_charged_fragments,
                       use_graph=use_graph)
     if new_mols is None:
