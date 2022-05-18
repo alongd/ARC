@@ -2295,7 +2295,8 @@ class Scheduler(object):
                                              freq_scale_factor=self.freq_scale_factor,
                                              )
                     if switch_ts is True:
-                        logger.error(f'Could not calculate a rate coefficient for reaction {rxn.label}, switching TS.')
+                        logger.error(f'Could not calculate a rate coefficient for reaction {rxn.label}. '
+                                     f'Check status is:\n{rxn.ts_species.ts_checks}.\nSwitching TS.\n')
                         self.switch_ts(rxn.ts_label)
 
     def check_negative_freq(self,
