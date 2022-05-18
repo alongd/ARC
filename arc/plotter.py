@@ -940,7 +940,7 @@ def save_conformers_file(project_directory: str,
                     if energies[i] == min_e:
                         content += 'Relative Energy: 0 kJ/mol (lowest)'
                     elif energies[i] is not None:
-                        content += f'Relative Energy: {energies[i] - min_e:.3f} kJ/mol'
+                        content += f'Relative Energy: {energies[i] - min_e:9.3f} kJ/mol'
             else:
                 # Failed to converge
                 if is_ts and ts_methods is not None:
