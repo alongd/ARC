@@ -140,8 +140,12 @@ def update_input_dict_with_args(args: dict,
         elif arg_type == 'keyword' and arg_dict:
             for key, value in arg_dict.items():
                 if key == 'scan_trsh':
+                    if 'scan_trsh' not in input_dict.keys():
+                        input_dict['scan_trsh'] = ''
                     input_dict['scan_trsh'] += f'{value} '
                 else:
+                    if 'keywords' not in input_dict.keys():
+                        input_dict['keywords'] = ''
                     input_dict['keywords'] += f'{value} '
     return input_dict
 
