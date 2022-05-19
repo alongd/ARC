@@ -348,7 +348,6 @@ class JobAdapter(ABC):
         ARC will allocate, e.g., 8 workers, to simultaneously get processes (one by one) from the HDF5 bank
         and execute them. On average, each worker in this example executes 125 jobs.
         """
-        return None
         if len(self.job_types) > 1:
             self.iterate_by.append('job_types')
 
@@ -364,7 +363,7 @@ class JobAdapter(ABC):
                     if job_type in ['sp', 'opt', 'freq', 'optfreq', 'composite', 'ornitals', 'onedmin', 'irc']:
                         self.number_of_processes += 1
                     # elif job_type == 'scan' and rotor_dict['directed_scan_type'] != 'ess':  # Todo: implement directed scans
-                    elif job_type == 'scan':
+                    elif job_type == 'scan' and len(species.rotors_dict.keys()) > 10:
                         self.iterate_by.append('scan')
                         scan_points_per_dimension = 360.0 / self.scan_res
                         for rotor_dict in species.rotors_dict.values():
