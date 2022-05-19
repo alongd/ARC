@@ -15,6 +15,7 @@ import itertools
 import math
 import os
 import shutil
+import time
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import TYPE_CHECKING, List, Optional, Tuple, Union
@@ -362,7 +363,7 @@ class JobAdapter(ABC):
                     if job_type in ['sp', 'opt', 'freq', 'optfreq', 'composite', 'ornitals', 'onedmin', 'irc']:
                         self.number_of_processes += 1
                     # elif job_type == 'scan' and rotor_dict['directed_scan_type'] != 'ess':  # Todo: implement directed scans
-                    elif job_type == 'scan':
+                    elif job_type == 'scan' and len(species.rotors_dict.keys()) > 10:
                         self.iterate_by.append('scan')
                         scan_points_per_dimension = 360.0 / self.scan_res
                         for rotor_dict in species.rotors_dict.values():
@@ -835,9 +836,6 @@ class JobAdapter(ABC):
     def determine_job_status(self):
         """
         Determine the Job's status. Updates self.job_status.
-
-        Raises:
-            IOError: If the output file and any additional server information cannot be found.
         """
         if self.job_status[0] == 'errored':
             return
@@ -852,7 +850,7 @@ class JobAdapter(ABC):
                     self.additional_job_info = content.lower()
                     logger.info(f'Got the following information from the server:\n{content}')
                     for line in content.splitlines():
-                        # example:
+                        # Example:
                         # slurmstepd: *** JOB 7752164 CANCELLED AT 2019-03-27T00:30:50 DUE TO TIME LIMIT on node096 ***
                         if 'cancelled' in line.lower() and 'due to time limit' in line.lower():
                             logger.warning(f'Looks like the job was cancelled on {self.server} due to time limit. '
@@ -924,6 +922,9 @@ class JobAdapter(ABC):
         """
         Check the status of the job ran by the electronic structure software (ESS).
         Possible statuses: ``initializing``, ``running``, ``errored: {error type / message}``, ``unconverged``, ``done``.
+
+        Raises:
+            IOError: If the output file and any additional server information cannot be found.
         """
         if self.server != 'local' and self.execution_type != 'incore':
             if os.path.exists(self.local_path_to_output_file):
@@ -932,17 +933,14 @@ class JobAdapter(ABC):
                 os.remove(self.local_path_to_orbitals_file)
             if os.path.exists(self.local_path_to_check_file):
                 os.remove(self.local_path_to_check_file)
-            self.download_files()  # Also downloads the check file and orbital file if they exist.
+            self.download_files()  # Also sets initial and final times.
         else:
             # If running locally (local queue or incore),
             # just rename the output file to "output.out" for consistency between software.
             if self.final_time is None or self.initial_time is None:
                 if self.server == 'local':
                     self.set_initial_and_final_times()
-                else:
-                    with SSHClient(self.server) as ssh:
-                        self.set_initial_and_final_times(ssh=ssh)
-        rename_output(local_file_path=self.local_path_to_output_file, software=self.job_adapter)
+        self.rename_output_file()
         xyz_path = os.path.join(self.local_path, 'scr', 'optim.xyz')
         if os.path.isfile(xyz_path):
             self.local_path_to_xyz = xyz_path
@@ -953,6 +951,15 @@ class JobAdapter(ABC):
                                                                  job_type=self.job_type,
                                                                  software=self.job_adapter,
                                                                  )
+            if status != 'done' and self.final_time is not None \
+                    and datetime.datetime.now() - self.final_time < datetime.timedelta(seconds=30):
+                # The head node might be busy, allow it some time to process, and check the status again.
+                time.sleep(30)
+                status, keywords, error, line = determine_ess_status(output_path=self.local_path_to_output_file,
+                                                                     species_label=self.species_label,
+                                                                     job_type=self.job_type,
+                                                                     software=self.job_adapter,
+                                                                     )
         else:
             status, keywords, error, line = '', '', '', ''
         self.job_status[1]['status'] = status
@@ -966,7 +973,8 @@ class JobAdapter(ABC):
         The renaming should happen automatically, this method functions to troubleshoot
         cases where renaming wasn't successful the first time.
         """
-        rename_output(local_file_path=self.local_path_to_output_file, software=self.job_adapter)
+        if not os.path.isfile(self.local_path_to_output_file):
+            rename_output(local_file_path=self.local_path_to_output_file, software=self.job_adapter)
 
     def add_to_args(self,
                     val: str,
