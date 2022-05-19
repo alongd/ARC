@@ -14,6 +14,7 @@ from arc.common import get_logger
 
 if TYPE_CHECKING:
     from arc.level import Level
+    from arc.job.adapter import JobAdapter
 
 logger = get_logger()
 
@@ -95,12 +96,12 @@ def is_restricted(obj) -> bool:
     return True
 
 
-def check_argument_consistency(obj):
+def check_argument_consistency(obj: 'JobAdapter'):
     """
     Check that general arguments of a job adapter are consistent.
 
     Args:
-        obj: The job adapter object.
+        obj (JobAdapter): The specific (not abstract) job adapter object instance.
     """
     if obj.job_type == 'irc' and obj.job_adapter in ['molpro']:
         raise NotImplementedError(f'IRC is not implemented for the {obj.job_adapter} job adapter.')
@@ -113,7 +114,7 @@ def check_argument_consistency(obj):
     if obj.job_type == 'scan' and divmod(360, obj.scan_res)[1]:
         raise ValueError(f'Got an illegal rotor scan resolution of {obj.scan_res}.')
     if obj.job_type == 'scan' and ((not obj.species[0].rotors_dict or obj.rotor_index is None) and obj.torsions is None):
-        # If this is a scan job type and species.rotors_dict is empty (e.g., via pipe), then torsions must be set up
+        # If this is a scan job type and species.rotors_dict is empty (e.g., via pipe), then torsions must be set up.
         raise ValueError('Either torsions or a species rotors_dict along with a rotor_index argument '
                          'must be specified for an ESS scan job.')
 
@@ -139,8 +140,12 @@ def update_input_dict_with_args(args: dict,
         elif arg_type == 'keyword' and arg_dict:
             for key, value in arg_dict.items():
                 if key == 'scan_trsh':
+                    if 'scan_trsh' not in input_dict.keys():
+                        input_dict['scan_trsh'] = ''
                     input_dict['scan_trsh'] += f'{value} '
                 else:
+                    if 'keywords' not in input_dict.keys():
+                        input_dict['keywords'] = ''
                     input_dict['keywords'] += f'{value} '
     return input_dict
 
