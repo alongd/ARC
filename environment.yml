@@ -27,7 +27,7 @@ dependencies:
   - networkx
   - nose
   - rmg::numdifftools
-  - numpy >=1.10.0
+  - numpy >=1.21
   - conda-forge::openbabel >= 3
   - pandas
   - psutil
