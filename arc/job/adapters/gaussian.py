@@ -81,6 +81,8 @@ class GaussianAdapter(JobAdapter):
         cpu_cores (int, optional): The total number of cpu cores requested for a job.
         dihedral_increment (float, optional): The degrees increment to use when scanning dihedrals of TS guesses.
         dihedrals (List[float], optional): The dihedral angels corresponding to self.torsions.
+        directed_dihedrals (list, optional): The dihedral angles of a directed scan job corresponding
+                                             to ``directed_scans``.
         directed_scan_type (str, optional): The type of the directed scan.
         ess_settings (dict, optional): A dictionary of available ESS and a corresponding server list.
         ess_trsh_methods (List[str], optional): A list of troubleshooting methods already tried out.
@@ -122,6 +124,7 @@ class GaussianAdapter(JobAdapter):
                  cpu_cores: Optional[str] = None,
                  dihedral_increment: Optional[float] = None,
                  dihedrals: Optional[List[float]] = None,
+                 directed_dihedrals: Optional[list] = None,
                  directed_scan_type: Optional[str] = None,
                  ess_settings: Optional[dict] = None,
                  ess_trsh_methods: Optional[List[str]] = None,
@@ -179,6 +182,7 @@ class GaussianAdapter(JobAdapter):
         self.cpu_cores = cpu_cores
         self.dihedral_increment = dihedral_increment
         self.dihedrals = dihedrals
+        self.directed_dihedrals = directed_dihedrals
         self.directed_scan_type = directed_scan_type
         self.ess_settings = ess_settings or global_ess_settings
         self.ess_trsh_methods = ess_trsh_methods or list()

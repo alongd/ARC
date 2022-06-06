@@ -46,6 +46,7 @@ def job_factory(job_adapter: str,
                 cpu_cores: Optional[str] = None,
                 dihedral_increment: Optional[float] = None,
                 dihedrals: Optional[List[float]] = None,
+                directed_dihedrals: Optional[list] = None,
                 directed_scan_type: Optional[str] = None,
                 ess_settings: Optional[dict] = None,
                 ess_trsh_methods: Optional[List[str]] = None,
@@ -98,6 +99,8 @@ def job_factory(job_adapter: str,
                                    node > cpu > cpu_cores > cpu_threads.
         dihedral_increment (float, optional): The degrees increment to use when scanning dihedrals of TS guesses.
         dihedrals (List[float], optional): The dihedral angels corresponding to self.torsions.
+        directed_dihedrals (list, optional): The dihedral angles of a directed scan job corresponding
+                                             to ``directed_scans``.
         directed_scan_type (str, optional): The type of the directed scan.
                                             Either ``'ess'``, ``'brute_force_sp'``, ``'brute_force_opt'``,
                                             ``'cont_opt'``, ``'brute_force_sp_diagonal'``,
@@ -182,6 +185,7 @@ def job_factory(job_adapter: str,
                                                               cpu_cores=cpu_cores,
                                                               dihedral_increment=dihedral_increment,
                                                               dihedrals=dihedrals,
+                                                              directed_dihedrals=directed_dihedrals,
                                                               directed_scan_type=directed_scan_type,
                                                               ess_settings=ess_settings,
                                                               ess_trsh_methods=ess_trsh_methods,
