@@ -783,6 +783,7 @@ class Scheduler(object):
                           constraints=None,
                           cpu_cores=cpu_cores,
                           directed_scan_type=directed_scan_type,
+                          directed_dihedrals=directed_dihedrals,
                           ess_settings=self.ess_settings,
                           ess_trsh_methods=ess_trsh_methods,
                           execution_type='incore' if job_adapter in default_incore_adapters else 'queue',
