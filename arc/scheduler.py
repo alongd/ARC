@@ -2752,8 +2752,8 @@ class Scheduler(object):
             xyz = parser.parse_geometry(path=job.local_path_to_output_file)
             is_isomorphic = self.species_dict[label].check_xyz_isomorphism(xyz=xyz, verbose=False)
             for rotor_dict in self.species_dict[label].rotors_dict.values():
-                if rotor_dict['pivots'] == job.pivots:
-                    key = tuple(f'{dihedral:.2f}' for dihedral in job.directed_dihedrals)
+                if rotor_dict['pivots'] == job.torsions[1:3]:
+                    key = tuple(f'{dihedral:.2f}' for dihedral in job.dihedrals)
                     rotor_dict['directed_scan'][key] = {'energy': parser.parse_e_elect(
                         path=job.local_path_to_output_file),
                         'xyz': xyz,
