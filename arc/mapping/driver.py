@@ -39,7 +39,7 @@ if TYPE_CHECKING:
 def map_reaction(rxn: 'ARCReaction',
                  backend: str = 'ARC',
                  db: Optional['RMGDatabase'] = None,
-                 flip = False
+                 flip: bool = False
                  ) -> Optional[List[int]]:
     """
     Map a reaction.
@@ -48,6 +48,7 @@ def map_reaction(rxn: 'ARCReaction',
         rxn (ARCReaction): An ARCReaction object instance.
         backend (str, optional): Whether to use ``'QCElemental'`` or ``ARC``'s method as the backend.
         db (RMGDatabase, optional): The RMG database instance.
+        flip (bool, optional): Try mapping with a flipped reaction.
 
     Returns:
         Optional[List[int]]:
@@ -55,7 +56,8 @@ def map_reaction(rxn: 'ARCReaction',
             corresponding entry values are running atom indices of the products.
     """
     if flip:
-        logger.warning(f"The requested ARC reaction {rxn} could not be atom mapped using {backend}. Trying again with the flipped reaction.")
+        logger.warning(f"The requested ARC reaction {rxn} could not be atom mapped using {backend}. "
+                       f"Trying again with the flipped reaction.")
         try:
             _map = flip_map(map_rxn(rxn.flip_reaction(), backend=backend, db=db))
         except ValueError:
@@ -70,7 +72,7 @@ def map_reaction(rxn: 'ARCReaction',
             return _map if _map is not None else map_reaction(rxn, backend=backend, db=db, flip=True)
         try:
             _map = map_rxn(rxn, backend=backend, db=db)
-        except ValueError as e:
+        except ValueError:
             return map_reaction(rxn, backend=backend, db=db, flip=True)
         return _map if _map is not None else map_reaction(rxn, backend=backend, db=db, flip=True)
 
@@ -240,7 +242,7 @@ def map_rxn(rxn: 'ARCReaction',
     # step 2:
     assign_labels_to_products(rxn, p_label_dict)
     reactants, products, loc_r, loc_p = prepare_reactants_and_products_for_scissors(rxn, r_label_dict, p_label_dict)
-    #step 3:
+    # step 3:
     label_species_atoms(reactants)
     label_species_atoms(products)
     r_cuts = cut_species_for_mapping(reactants, loc_r)
@@ -253,7 +255,7 @@ def map_rxn(rxn: 'ARCReaction',
 
     r_cuts, p_cuts = update_xyz(r_cuts), update_xyz(p_cuts)
 
-    #step 4:
+    # step 4:
     pairs_of_reactant_and_products = pairing_reactants_and_products_for_mapping(r_cuts, p_cuts)
     if len(p_cuts):
         logger.error(f"Could not find isomorphism for scissored species: {[cut.mol.smiles for cut in p_cuts]}")
