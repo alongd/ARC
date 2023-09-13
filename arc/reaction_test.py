@@ -1579,7 +1579,7 @@ class TestARCReaction(unittest.TestCase):
         p_1 = ARCSpecies(label='C9H15_b', smiles='C=CC1(C)C[C](C)C1C', xyz=c9h15_b_xyz)
         rxn = ARCReaction(reactants=['C9H15_a'], products=['C9H15_b'],
                           r_species=[r_1], p_species=[p_1])
-        atom_map = rxn.atom_maps
+        atom_map = rxn.atom_maps[0]
         self.assertEqual(atom_map[0:9], list(range(9)))
         self.assertIn(atom_map[9:11], [[9, 10], [10, 9]])
         self.assertEqual(atom_map[11], 11)
