@@ -135,6 +135,7 @@ class GaussianAdapter(JobAdapter):
                  job_status: Optional[List[Union[dict, str]]] = None,
                  level: Optional[Level] = None,
                  max_job_time: Optional[float] = None,
+                 run_multi_species: bool = False,
                  reactions: Optional[List['ARCReaction']] = None,
                  rotor_index: Optional[int] = None,
                  server: Optional[str] = None,
@@ -257,8 +258,10 @@ class GaussianAdapter(JobAdapter):
             self.level.method = 'cbs-qb3'
 
         # Job type specific options
+        # max_cycles 500
+        max_c = self.args['trsh'].split()[1] if 'max_cycles' in self.args['trsh'] else 100
         if self.job_type in ['opt', 'conformers', 'optfreq', 'composite']:
-            keywords = ['ts', 'calcfc', 'noeigentest', 'maxcycles=100'] if self.is_ts else ['calcfc']
+            keywords = ['ts', 'calcfc', 'noeigentest', f'maxcycles={max_c}' + '}'] if self.is_ts else ['calcfc']
             if self.level.method in ['rocbs-qb3']:
                 # There are no analytical 2nd derivatives (FC) for this method.
                 keywords = ['ts', 'noeigentest', 'maxcycles=100'] if self.is_ts else []
@@ -324,8 +327,16 @@ class GaussianAdapter(JobAdapter):
 
         input_dict = update_input_dict_with_args(args=self.args, input_dict=input_dict)
 
-        with open(os.path.join(self.local_path, input_filenames[self.job_adapter]), 'w') as f:
-            f.write(Template(input_template).render(**input_dict))
+        if not run_multi_species:
+            with open(os.path.join(self.local_path, input_filenames[self.job_adapter]), 'w') as f:
+                f.write(Template(input_template).render(**input_dict))
+        else:
+            input_file = Template(input_template).render(**input_dict)
+            for spc in self.species:
+                input_file += '\n\n -- link 1 --\n\'
+
+
+            f.write(input_file)
 
     def set_files(self) -> None:
         """
