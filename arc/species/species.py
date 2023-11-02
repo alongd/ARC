@@ -189,8 +189,9 @@ class ARCSpecies(object):
                                    The present species object instance represents a geometry optimization job of the IRC
                                    result in one direction.
         project_directory (str, optional): The path to the project directory.
-        multispecies: (str, optional): The multi-species set this species belongs to. Used for running a set of species
-                                      simultaneously in a single ESS input file.
+        multi_species: (str, optional): The multi-species set this species belongs to. Used for running a set of species
+                                       simultaneously in a single ESS input file. A species marked as multi_species
+                                       will only have one conformer considered (n_confs set to 1).
 
     Attributes:
         label (str): The species' label.
@@ -291,7 +292,7 @@ class ARCSpecies(object):
                          result in one direction. If a species is a transition state, then this attribute contains the
                          labels of the two corresponding "IRC species", separated by a blank space.
         project_directory (str): The path to the project directory.
-        multispecies: (str): The multi-species set this species belongs to. Used for running a set of species
+        multi_species: (str): The multi-species set this species belongs to. Used for running a set of species
                              simultaneously in a single ESS input file.
     """
 
@@ -315,7 +316,7 @@ class ARCSpecies(object):
                  label: Optional[str] = None,
                  mol: Optional[Molecule] = None,
                  multiplicity: Optional[int] = None,
-                 multispecies: Optional[str] = None,
+                 multi_species: Optional[str] = None,
                  number_of_radicals: Optional[int] = None,
                  occ: Optional[int] = None,
                  optical_isomers: Optional[int] = None,
@@ -352,7 +353,7 @@ class ARCSpecies(object):
         self.mol_list = None
         self.adjlist = adjlist
         self.multiplicity = multiplicity
-        self.multispecies = multispecies
+        self.multi_species = multi_species
         self.number_of_radicals = number_of_radicals
         self.external_symmetry = external_symmetry
         self.irc_label = irc_label
@@ -642,8 +643,8 @@ class ARCSpecies(object):
         species_dict['label'] = self.label
         species_dict['long_thermo_description'] = self.long_thermo_description
         species_dict['multiplicity'] = self.multiplicity
-        if self.multispecies is not None:
-            species_dict['multispecies'] = self.multispecies
+        if self.multi_species is not None:
+            species_dict['multi_species'] = self.multi_species
         species_dict['charge'] = self.charge
         species_dict['compute_thermo'] = self.compute_thermo
         if not self.include_in_thermo_lib:
@@ -815,7 +816,7 @@ class ARCSpecies(object):
         if 'xyz' in species_dict and self.initial_xyz is None and self.final_xyz is None:
             self.process_xyz(species_dict['xyz'])
         self.multiplicity = species_dict['multiplicity'] if 'multiplicity' in species_dict else None
-        self.multispecies = species_dict['multispecies'] if 'multispecies' in species_dict else None
+        self.multi_species = species_dict['multi_species'] if 'multi_species' in species_dict else None
         self.charge = species_dict['charge'] if 'charge' in species_dict else 0
         self.compute_thermo = species_dict['compute_thermo'] if 'compute_thermo' in species_dict else not self.is_ts
         self.include_in_thermo_lib = species_dict['include_in_thermo_lib'] if 'include_in_thermo_lib' in species_dict else True
