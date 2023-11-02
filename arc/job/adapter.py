@@ -375,7 +375,8 @@ class JobAdapter(ABC):
         ARC will allocate, e.g., 8 workers, to simultaneously get processes (one by one) from the HDF5 bank
         and execute them. On average, each worker in this example executes 125 jobs.
         """
-        if self.execution_type == 'incore':
+        if self.execution_type == 'incore' \
+                or self.species is not None and all([spc.multispecies is not None for spc in self.species]):
             return None
         if len(self.job_types) > 1:
             self.iterate_by.append('job_types')
