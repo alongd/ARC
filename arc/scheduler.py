@@ -721,7 +721,7 @@ class Scheduler(object):
                 fine: Optional[bool] = False,
                 irc_direction: Optional[str] = None,
                 job_adapter: Optional[str] = None,
-                label: Optional[str] = None,
+                label: Optional[Union[str, List[str]]] = None,
                 level_of_theory: Optional[Union[Level, dict, str]] = None,
                 memory: Optional[int] = None,
                 max_job_time: Optional[int] = None,
@@ -749,7 +749,7 @@ class Scheduler(object):
             fine (bool, optional): Whether to run an optimization job with a fine grid. `True` to use fine.
             irc_direction (str, optional): The direction to run the IRC computation.
             job_adapter (str, optional): An ESS software to use.
-            label (str, optional): The species label.
+            label (Union[str, List[str]], optional): The species label, or a list of labels in case of multispecies.
             level_of_theory (Level, optional): The level of theory to use.
             memory (int, optional): The total job allocated memory in GB.
             max_job_time (int, optional): The maximal allowed job time on the server in hours.
@@ -765,7 +765,12 @@ class Scheduler(object):
         """
         max_job_time = max_job_time or self.max_job_time  # if it's None, set to default
         ess_trsh_methods = ess_trsh_methods if ess_trsh_methods is not None else list()
-        species = self.species_dict[label] if label is not None else None
+        species = None
+        if isinstance(label, str):
+            species = self.species_dict[label]
+        elif isinstance(label, list):
+            species = [spc for spc in self.species_list if spc.label in label]
+        run_multi_species = all([spc.multispecies is not None for spc in species]) if isinstance(species, list) else False
         memory = memory if memory is not None else self.memory
         checkfile = self.species_dict[label].checkfile if label is not None else None
         if torsions is None and rotor_index is not None:
@@ -815,6 +820,7 @@ class Scheduler(object):
                           torsions=torsions,
                           tsg=tsg,
                           xyz=xyz,
+                          run_multi_species=run_multi_species,
                           )
         label = label or reactions[0].ts_species.label
         if label not in self.job_dict.keys():
@@ -1038,8 +1044,9 @@ class Scheduler(object):
                         self.species_dict[label].initial_xyz = self.species_dict[label].get_xyz()
                 else:
                     # Run the combinatorial method w/o fitting a force field.
+                    n_confs = self.n_confs if self.species_dict[label].multispecies is None else 1
                     self.species_dict[label].generate_conformers(
-                        n_confs=self.n_confs,
+                        n_confs=n_confs,
                         e_confs=self.e_confs,
                         plot_path=os.path.join(self.project_directory, 'output', 'Species',
                                                label, 'geometry', 'conformers'))
@@ -1127,6 +1134,9 @@ class Scheduler(object):
                                                or self.species_dict[label].get_xyz(generate=False)
         if self.species_dict[label].initial_xyz is None:
             raise SpeciesError(f'Cannot execute opt job for {label} without xyz (got None for Species.initial_xyz)')
+        label = label if self.species_dict[label].multispecies is None \
+            else [species.label for species in self.species_list
+                  if species.multispecies == self.species_dict[label].multispecies]
         self.run_job(label=label, xyz=self.species_dict[label].initial_xyz, level_of_theory=self.opt_level,
                      job_type='opt', fine=fine)
 
@@ -1828,23 +1838,26 @@ class Scheduler(object):
                                         'to True)')
                             spawn_jobs = False
                 if spawn_jobs:
-                    if not self.composite_method:
-                        if self.job_types['opt']:
-                            self.run_opt_job(label, self.fine_only)
+                    if self.species_dict[label].multispecies is None or \
+                            all([species.initial_xyz is not None for species in self.species_list
+                                 if species.multispecies == self.species_dict[label].multispecies]):
+                        if not self.composite_method:
+                            if self.job_types['opt']:
+                                self.run_opt_job(label, self.fine_only)
+                            else:
+                                # opt wasn't requested, skip directly to additional relevant job types
+                                if self.job_types['freq']:
+                                    self.run_freq_job(label)
+                                if self.job_types['sp']:
+                                    self.run_sp_job(label)
+                                if self.job_types['rotors']:
+                                    self.run_scan_jobs(label)
+                                if self.job_types['onedmin']:
+                                    self.run_onedmin_job(label)
+                                if self.job_types['orbitals']:
+                                    self.run_orbitals_job(label)
                         else:
-                            # opt wasn't requested, skip directly to additional relevant job types
-                            if self.job_types['freq']:
-                                self.run_freq_job(label)
-                            if self.job_types['sp']:
-                                self.run_sp_job(label)
-                            if self.job_types['rotors']:
-                                self.run_scan_jobs(label)
-                            if self.job_types['onedmin']:
-                                self.run_onedmin_job(label)
-                            if self.job_types['orbitals']:
-                                self.run_orbitals_job(label)
-                    else:
-                        self.run_composite_job(label)
+                            self.run_composite_job(label)
 
     def parse_conformer(self,
                         job: 'JobAdapter',
