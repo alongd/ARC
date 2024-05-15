@@ -186,6 +186,37 @@ class TestLinearAdapter(unittest.TestCase):
         ts_xyzs = interpolate_isomerization(rxn, use_weights=True)
         self.assertTrue(almost_equal_coords(ts_xyzs[0], expected_ts_xyz))
 
+    def test_interpolate_TS7(self):
+        """Test the interpolate_isomerization() function."""
+        nhoo_xyz = """N      -0.64923800   -0.14927200    0.33426300
+                      O       0.45249200    0.13048300   -0.30838700
+                      O       1.54214700   -0.05174200    0.36457100
+                      H      -1.34540100    0.07052500   -0.39045000"""
+        hno2_xyz = """N      -0.00092200    0.00597700    0.00012300
+                      O      -1.00389700   -0.68686100    0.00467700
+                      O       1.16414200   -0.35170900   -0.02612100
+                      H      -0.15932300    1.03259200    0.02132100"""
+        nhoo = ARCSpecies(label='NHOO', smiles='[NH-][O+]=O', xyz=nhoo_xyz)
+        hno2 = ARCSpecies(label='HNO2', smiles='O=[NH+][O-]', xyz=hno2_xyz)
+
+        rxn = ARCReaction(r_species=[nhoo], p_species=[hno2])
+        expected_ts_xyz = str_to_xyz("""C       0.01099731   -0.46789926   -1.15958911
+                                        C       0.01099731   -0.46789926    0.33114978
+                                        C       0.01099731    0.94103865    0.90031155
+                                        H       0.57795661   -1.24174248   -1.65467180
+                                        H      -0.39690222    0.34527841   -1.69240298
+                                        H      -1.19440431   -1.28933062   -0.47327539
+                                        H       0.89689057   -1.16420498    0.45967951
+                                        H       0.76979130    1.33747945    0.33815513
+                                        H      -0.04544494    0.70455273    1.77835334
+                                        H      -1.00071642    1.24557408    0.38839197""")
+        ts_xyzs = interpolate_isomerization(rxn, use_weights=False)
+        for xyz in ts_xyzs:
+            print('\n\n\n')
+            print(xyz_to_str(xyz))
+        self.assertEqual(len(ts_xyzs), 1)
+        self.assertTrue(almost_equal_coords(ts_xyzs[0], expected_ts_xyz))
+
     def test_interpolate_no2_ono_isomerization(self):
         """Test the interpolate_isomerization() function."""
         c2h5no2_xyz = """C      -1.12362739   -0.04664655   -0.08575959
