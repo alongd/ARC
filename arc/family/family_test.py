@@ -11,26 +11,26 @@ import unittest
 from rmgpy.molecule import Group, Molecule
 
 from arc.common import generate_resonance_structures
-from arc.reaction.family import (ReactionFamily,
-                                 ARC_FAMILIES_PATH,
-                                 RMG_DB_PATH,
-                                 add_labels_to_molecule,
-                                 check_product_isomorphism,
-                                 descent_complex_group,
-                                 determine_possible_reaction_products_from_family,
-                                 get_reaction_family_products,
-                                 get_all_families,
-                                 get_entries,
-                                 get_group_adjlist,
-                                 get_initial_reactant_labels_from_template,
-                                 get_isomorphic_subgraph,
-                                 get_product_num,
-                                 get_reactant_groups_from_template,
-                                 get_recipe_actions,
-                                 get_rmg_recommended_family_sets,
-                                 is_own_reverse,
-                                 is_reversible,
-                                 )
+from arc.family.family import (ReactionFamily,
+                               ARC_FAMILIES_PATH,
+                               RMG_DB_PATH,
+                               add_labels_to_molecule,
+                               check_product_isomorphism,
+                               descent_complex_group,
+                               determine_possible_reaction_products_from_family,
+                               get_reaction_family_products,
+                               get_all_families,
+                               get_entries,
+                               get_group_adjlist,
+                               get_initial_reactant_labels_from_template,
+                               get_isomorphic_subgraph,
+                               get_product_num,
+                               get_reactant_groups_from_template,
+                               get_recipe_actions,
+                               get_rmg_recommended_family_sets,
+                               is_own_reverse,
+                               is_reversible,
+                               )
 from arc.reaction.reaction import ARCReaction
 from arc.species.species import ARCSpecies
 
