@@ -9,7 +9,7 @@ from rmgpy.species import Species
 
 from arc.common import get_logger
 from arc.exceptions import ReactionError, InputError
-from arc.reaction.family import ReactionFamily, get_reaction_family_products
+from arc.family.family import ReactionFamily, get_reaction_family_products
 from arc.species.converter import (check_xyz_dict,
                                    sort_xyz_using_indices,
                                    translate_to_center_of_mass,
