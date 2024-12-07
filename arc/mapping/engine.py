@@ -19,7 +19,7 @@ from rmgpy.species import Species
 
 from arc.common import convert_list_index_0_to_1, extremum_list, generate_resonance_structures, logger, key_by_val
 from arc.exceptions import SpeciesError
-from arc.reaction.family import ReactionFamily, get_reaction_family_products
+from arc.family.family import ReactionFamily, get_reaction_family_products
 from arc.species import ARCSpecies
 from arc.species.conformers import determine_chirality
 from arc.species.converter import compare_confs, sort_xyz_using_indices, translate_xyz, xyz_from_data, xyz_to_str
