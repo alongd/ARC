@@ -63,9 +63,8 @@ class ConsistencyChecker(object):
         """
         Checks whether the partial charge attribute of the atom checks out with
         the theoretical one:
-
         """
-        if atom.symbol in ['X','Li']:
+        if atom.symbol in {'X', 'R', 'e'}:
             return  # because we can't check it.
 
         valence = PeriodicSystem.valence_electrons[atom.symbol]
