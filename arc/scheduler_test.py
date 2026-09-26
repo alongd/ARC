@@ -353,6 +353,49 @@ H       1.27889520   -0.81548721   -0.22940984"""
         # And the restored names are the live '{job_type}_{i}' format, not the fossil 'conformer{i}'.
         self.assertEqual(sched.running_jobs[label], ['conf_opt_0', 'conf_sp_0'])
 
+    def test_restore_running_jobs_registers_the_job_server(self):
+        """A restored running job's server must be registered in ``self.servers``.
+
+        ``self.servers`` is otherwise only ever appended to by ``run_job()``, so on a restart with
+        jobs already running (restored, not freshly submitted this process) it stays empty until
+        something calls ``run_job()``. The one-poll-per-pass model queries only the servers listed
+        in ``self.servers``, so an empty list means the first full poll after a restart queries zero
+        servers and every restored running job is misread as finished.
+        """
+        label = 'methylamine'
+        xyz = """C      -0.57422867   -0.01669771    0.01229213
+N       0.82084044    0.08279104   -0.37769346
+H      -1.05737005   -0.84067772   -0.52007494
+H      -1.10211468    0.90879867   -0.23383011
+H      -0.66133128   -0.19490562    1.08785111
+H       0.88047852    0.26966160   -1.37780789
+H       1.27889520   -0.81548721   -0.22940984"""
+        spc = ARCSpecies(label=label, smiles='CN', xyz=xyz)
+        sched = Scheduler(project='project_test_restore_server', ess_settings=self.ess_settings,
+                          species_list=[spc], composite_method=None,
+                          conformer_opt_level=Level(repr=default_levels_of_theory['conformer']),
+                          opt_level=Level(repr=default_levels_of_theory['opt']),
+                          freq_level=Level(repr=default_levels_of_theory['freq']),
+                          sp_level=Level(repr=default_levels_of_theory['sp']),
+                          scan_level=Level(repr=default_levels_of_theory['scan']),
+                          ts_guess_level=Level(repr=default_levels_of_theory['ts_guesses']),
+                          project_directory=self.project_directory, testing=True,
+                          job_types=self.job_types1,
+                          orbitals_level=default_levels_of_theory['orbitals'], adaptive_levels=None)
+        opt_job = job_factory(job_adapter='gaussian', project='project_test_restore_server',
+                              ess_settings=self.ess_settings, species=[spc], xyz=xyz,
+                              job_type='opt', server='server1',
+                              level=Level(repr={'method': 'wb97xd', 'basis': 'def2svp'}),
+                              project_directory=self.project_directory, job_num=903)
+        sched.servers = list()
+        sched.restart_dict = {'running_jobs': {label: [opt_job.as_dict()]}}
+        sched.running_jobs = dict()
+        sched.job_dict = dict()
+
+        sched.restore_running_jobs()
+
+        self.assertIn('server1', sched.servers)
+
     def test_check_negative_freq(self):
         """Test the check_negative_freq() method"""
         label = 'C2H6'

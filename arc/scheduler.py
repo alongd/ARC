@@ -390,6 +390,7 @@ class Scheduler(object):
         self.max_job_time = max_job_time or default_job_settings.get('job_time_limit_hrs', 120)
         self.job_dict = dict()
         self.server_job_ids = list()
+        self.servers = list()
         self._server_job_ids_by_server = dict()  # server name -> ids last polled/submitted for it
         self._ids_submitted_since_snapshot = dict()  # server name -> ids recorded since the pass's last full poll
         self._polled_job_ids_by_server = dict()  # server name -> ids from that server's most recent fresh poll only
@@ -433,7 +434,6 @@ class Scheduler(object):
         self.running_jobs_snapshot_path = os.path.join(self.project_directory, 'running_jobs.yml')
         self.report_time = time.time()  # init time for reporting status every 1 hr
         self._last_status_payload: dict | None = None
-        self.servers = list()
         self.remote_project_paths = dict()
         self.composite_method = composite_method
         self.conformer_opt_level = conformer_opt_level
@@ -5281,6 +5281,8 @@ class Scheduler(object):
                             self.job_dict[spc_label]['tsg'] = dict()
                         self.job_dict[spc_label]['tsg'][int(job_description['tsg'])] = job
                     self.server_job_ids.append(job.job_id)
+                    if job.server is not None and job.server not in self.servers:
+                        self.servers.append(job.server)
             if self.job_dict:
                 content = 'Restarting ARC, tracking the following jobs spawned in a previous session:'
                 for spc_label in self.job_dict.keys():
