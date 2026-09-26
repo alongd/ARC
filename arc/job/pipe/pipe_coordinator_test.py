@@ -72,6 +72,8 @@ def _make_mock_sched(project_directory, ess_settings=None):
     sched = MagicMock()
     sched.project_directory = project_directory
     sched.server_job_ids = list()
+    sched.record_submitted_job_id = MagicMock(
+        side_effect=lambda job_id, server: sched.server_job_ids.append(job_id))
     sched.ess_settings = ess_settings if ess_settings is not None else {'mockter': ['local']}
     spc = ARCSpecies(label='H2O', smiles='O')
     spc.conformers = [None] * 5

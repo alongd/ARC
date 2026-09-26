@@ -3418,6 +3418,32 @@ H      -0.38158795    1.01273118   -0.02607927""")),
         mock_check_all_done.assert_called_once_with(irc_label)
         self.assertEqual(sched.running_jobs, dict())
 
+    @patch('arc.scheduler.Scheduler.generate_final_ts_guess_report')
+    @patch('arc.scheduler.Scheduler.spawn_ts_jobs')
+    @patch('arc.scheduler.Scheduler.run_conformer_jobs')
+    def test_schedule_jobs_polls_the_queue_once_per_pass_regardless_of_label_count(self,
+                                                                                   mock_run_conformer_jobs,
+                                                                                   mock_spawn_ts_jobs,
+                                                                                   mock_generate_report):
+        """One poll per pass, not one per label: a naive per-label hoist would call this twice here."""
+        ts_label = 'TS_poll_once'
+        sched = self.make_irc_scheduler(ts_label=ts_label,
+                                        project_directory_name='arc_project_for_testing_delete_after_usage_poll_1')
+        second_label = 'second_species_poll_once'
+        second_spc = ARCSpecies(label=second_label, xyz=sched.species_dict[ts_label].get_xyz(),
+                                compute_thermo=False)
+        sched.species_dict[second_label] = second_spc
+        sched.species_list.append(second_spc)
+        sched.job_dict[second_label] = {'opt': {}}
+        sched.initialize_output_dict(label=second_label)
+        sched.running_jobs[second_label] = list()
+        sched.unique_species_labels = [ts_label, second_label]
+
+        with patch.object(sched, 'check_all_done'), \
+                patch.object(sched, 'get_server_job_ids', wraps=sched.get_server_job_ids) as mock_poll:
+            sched.schedule_jobs()
+        mock_poll.assert_called_once()
+
     @patch('arc.scheduler.Scheduler.run_job')
     def test_run_sp_monoatomic_dlpno(self, mock_run_job):
         """Monoatomic H falls back to HF; heavier atoms (O) keep DLPNO intact."""
@@ -3806,6 +3832,7 @@ class StubJob(object):
         self.job_name = f'{job_type}_{job_adapter}'
         self.job_id = None
         self.server = None
+        self.execution_type = 'queue'
 
     def as_dict(self) -> dict:
         """Return a dictionary representation of the job, used when saving the restart file."""
@@ -4215,7 +4242,8 @@ class TestGetServerJobIds(unittest.TestCase):
     @staticmethod
     def _sched(servers):
         """A stand-in carrying only what get_server_job_ids() reads."""
-        return SimpleNamespace(servers=servers, server_job_ids=None)
+        return SimpleNamespace(servers=servers, server_job_ids=None, _server_job_ids_by_server=dict(),
+                                _ids_submitted_since_snapshot=dict(), _polled_job_ids_by_server=dict())
 
     def test_a_remote_server_is_polled_through_a_pooled_client(self):
         """Opening a connection per poll is what the pool exists to stop."""
@@ -4437,6 +4465,168 @@ class TestSchedulerReactionChargeBalance(unittest.TestCase):
         rxn = ARCReaction(label='HO- + CH3OH <=> H2O + CH3O-')
         self.build_scheduler(rxn, species)
         self.assertEqual(rxn.charge, -1)
+
+
+class TestMidPassSnapshotProtection(unittest.TestCase):
+    """A job recorded mid-pass must survive a later scoped repoll that doesn't yet see it.
+
+    This reproduces the exact shape of check_max_simultaneous_jobs_limit()'s own repoll of a
+    single server: a naive hoist that has get_server_job_ids() overwrite a server's bucket with
+    whatever the live poll returns would drop a job here, since a job can lag behind its own
+    submission in a live queue listing. On a naive hoist, test 1 below fails.
+    """
+
+    @staticmethod
+    def _sched(servers):
+        """A stand-in carrying only what get_server_job_ids()/record_submitted_job_id() read."""
+        return SimpleNamespace(servers=servers, server_job_ids=[], _server_job_ids_by_server=dict(),
+                                _ids_submitted_since_snapshot=dict(), _polled_job_ids_by_server=dict())
+
+    def test_a_scoped_repoll_does_not_drop_a_job_submitted_since_the_last_full_snapshot(self):
+        sched = self._sched(['zeus'])
+        with patch('arc.scheduler.borrow_ssh_client') as borrow:
+            borrow.return_value.__enter__.return_value.check_running_jobs_ids.return_value = ['101']
+            Scheduler.get_server_job_ids(sched)  # the pass's own full snapshot
+        Scheduler.record_submitted_job_id(sched, '102', 'zeus')  # submitted mid-pass, after the snapshot
+        with patch('arc.scheduler.borrow_ssh_client') as borrow:
+            # the live queue hasn't caught up with '102' yet
+            borrow.return_value.__enter__.return_value.check_running_jobs_ids.return_value = ['101']
+            Scheduler.get_server_job_ids(sched, specific_server='zeus')  # e.g. check_max_simultaneous_jobs_limit()
+        self.assertIn('102', sched.server_job_ids)
+
+    def test_the_next_passs_full_snapshot_may_retire_a_pending_id_once_its_own_poll_settles(self):
+        sched = self._sched(['zeus'])
+        Scheduler.record_submitted_job_id(sched, '102', 'zeus')
+        with patch('arc.scheduler.borrow_ssh_client') as borrow:
+            borrow.return_value.__enter__.return_value.check_running_jobs_ids.return_value = ['101']
+            Scheduler.get_server_job_ids(sched)  # a fresh pass's own full snapshot
+        self.assertEqual(sched.server_job_ids, ['101'])
+
+
+class TestCheckMaxSimultaneousJobsLimit(unittest.TestCase):
+    """The scoped poll inside the wait loop must be the only poll, and must judge the limit
+    against the polled server's own bucket, not the global (all-servers) id list.
+
+    A resurrected trailing unconditional full re-poll after the loop, or a reverted length
+    check that reads ``self.server_job_ids`` instead of the per-server bucket, both surface
+    here: either mutation makes ``get_server_job_ids`` get called more than once, or makes
+    the loop sleep and retry when the polled server is actually under its own limit.
+    """
+
+    def test_does_not_sleep_or_repoll_when_the_specific_servers_own_bucket_is_under_limit(self):
+        sched = SimpleNamespace(server_job_ids=[], _server_job_ids_by_server=dict(), _polled_job_ids_by_server=dict())
+        calls = []
+
+        def fake_poll(specific_server=None):
+            calls.append(specific_server)
+            # 'zeus' has only 1 job of its own, but the global (cross-server) list is over
+            # the limit because of jobs on other servers -- the limit check must ignore that.
+            sched._polled_job_ids_by_server['zeus'] = ['1']
+            sched.server_job_ids = ['1', '2', '3', '4']
+
+        sched.get_server_job_ids = MagicMock(side_effect=fake_poll)
+        with patch.dict('arc.scheduler.servers_dict', {'zeus': {'max_simultaneous_jobs': 2}}, clear=True), \
+                patch('arc.scheduler.time.sleep') as mock_sleep:
+            Scheduler.check_max_simultaneous_jobs_limit(sched, 'zeus')
+        mock_sleep.assert_not_called()
+        self.assertEqual(calls, ['zeus'])
+
+    def test_keeps_waiting_while_the_specific_servers_own_bucket_is_at_or_above_limit(self):
+        sched = SimpleNamespace(server_job_ids=[], _server_job_ids_by_server=dict(), _polled_job_ids_by_server=dict())
+        calls = []
+
+        def fake_poll(specific_server=None):
+            calls.append(specific_server)
+            # 'zeus' starts at the limit, then drops below it on the second poll.
+            sched._polled_job_ids_by_server['zeus'] = ['1', '2'] if len(calls) == 1 else ['1']
+
+        sched.get_server_job_ids = MagicMock(side_effect=fake_poll)
+        with patch.dict('arc.scheduler.servers_dict', {'zeus': {'max_simultaneous_jobs': 2}}, clear=True), \
+                patch('arc.scheduler.time.sleep') as mock_sleep:
+            Scheduler.check_max_simultaneous_jobs_limit(sched, 'zeus')
+        mock_sleep.assert_called_once_with(90)
+        self.assertEqual(calls, ['zeus', 'zeus'])
+
+
+class TestCheckMaxSimultaneousJobsLimitPendingIdDeadlock(unittest.TestCase):
+    """A pending (submitted-since-snapshot) id that has actually finished must not block the
+    limit check forever.
+
+    ``_server_job_ids_by_server`` is the union of the fresh poll and any id recorded via
+    ``record_submitted_job_id()`` since the pass's last full snapshot; that union only shrinks
+    on a full poll. If the limit check counted the union, a job submitted mid-pass and already
+    finished (so absent from every subsequent fresh poll) would keep the union at/above the
+    limit forever, since a scoped poll of one server never runs a fresh full snapshot. The
+    limit check must count only the most recent fresh poll of the specific server.
+    """
+
+    def test_a_pending_id_absent_from_the_fresh_poll_does_not_block_the_limit_check(self):
+        sched = SimpleNamespace(servers=['zeus'], server_job_ids=[], _server_job_ids_by_server=dict(),
+                                 _ids_submitted_since_snapshot=dict(), _polled_job_ids_by_server=dict())
+        sched.get_server_job_ids = lambda specific_server=None: Scheduler.get_server_job_ids(
+            sched, specific_server=specific_server)
+        Scheduler.record_submitted_job_id(sched, '101', 'zeus')  # tracked as pending, submitted mid-pass
+
+        def guard_against_hang(*args, **kwargs):
+            # A deadlocked implementation loops forever; fail fast instead of hanging the suite.
+            raise AssertionError('check_max_simultaneous_jobs_limit slept -- it never saw the count drop')
+
+        with patch('arc.scheduler.borrow_ssh_client') as borrow, \
+                patch.dict('arc.scheduler.servers_dict', {'zeus': {'max_simultaneous_jobs': 1}}, clear=True), \
+                patch('arc.scheduler.time.sleep', side_effect=guard_against_hang) as mock_sleep:
+            # '101' has actually already finished: it's absent from the fresh poll.
+            borrow.return_value.__enter__.return_value.check_running_jobs_ids.return_value = []
+            Scheduler.check_max_simultaneous_jobs_limit(sched, 'zeus')
+        mock_sleep.assert_not_called()
+
+
+class TestTroubleshootOptJobsRecordsResubmission(unittest.TestCase):
+    """``job.troubleshoot_server()``'s resubmission must also be recorded via
+    ``record_submitted_job_id()``, the same way ``run_job()`` records a submission -- otherwise
+    a job resubmitted mid-pass via ``troubleshoot_server()`` can be misread as finished within
+    that pass (the same race ``record_submitted_job_id()`` was added to close, just reached
+    through a different call site).
+    """
+
+    def test_a_server_error_resubmission_is_recorded(self):
+        job = MagicMock()
+        job.job_status = ['errored', {'status': 'errored'}]
+        job.execution_type = 'queue'
+        job.server = 'zeus'
+        job.job_id = None
+
+        def fake_troubleshoot_server():
+            job.job_id = '999'  # simulates job.execute() assigning a fresh id on resubmission
+
+        job.troubleshoot_server = MagicMock(side_effect=fake_troubleshoot_server)
+        sched = SimpleNamespace(trsh_ess_jobs=True, job_dict={'spc': {'opt': {'opt_a0': job}}},
+                                record_submitted_job_id=MagicMock())
+        Scheduler.troubleshoot_opt_jobs(sched, label='spc')
+        sched.record_submitted_job_id.assert_called_once_with('999', 'zeus')
+
+    def test_a_change_node_resubmission_in_troubleshoot_ess_is_recorded(self):
+        """The second ``job.troubleshoot_server()`` call site, inside ``troubleshoot_ess()``."""
+        job = MagicMock()
+        job.job_status = ['errored', {'status': 'errored', 'keywords': ['Unknown'], 'error': 'e', 'line': 'l'}]
+        job.ess_trsh_methods = []
+        job.job_type = 'opt'
+        job.job_adapter = 'not_gaussian'
+        job.server = 'zeus'
+        job.execution_type = 'queue'
+        job.job_id = None
+        job.job_name = 'job1'
+
+        def fake_troubleshoot_server():
+            job.job_id = '999'  # simulates job.execute() assigning a fresh id on resubmission
+
+        job.troubleshoot_server = MagicMock(side_effect=fake_troubleshoot_server)
+        species = SimpleNamespace(is_ts=False, final_xyz='xyz_str', initial_xyz='xyz_str2')
+        sched = SimpleNamespace(trsh_ess_jobs=True, trsh_rotors=True, species_dict={'spc': species},
+                                running_jobs={'spc': []}, output={'spc': {'errors': ''}},
+                                record_submitted_job_id=MagicMock())
+        with patch('arc.scheduler.max_ess_trsh', 0):
+            Scheduler.troubleshoot_ess(sched, label='spc', job=job, level_of_theory='b3lyp/6-31g', conformer=None)
+        sched.record_submitted_job_id.assert_called_once_with('999', 'zeus')
 
 
 class TestParseCompositeGeoMonoatomic(unittest.TestCase):

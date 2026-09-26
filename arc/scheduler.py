@@ -390,6 +390,9 @@ class Scheduler(object):
         self.max_job_time = max_job_time or default_job_settings.get('job_time_limit_hrs', 120)
         self.job_dict = dict()
         self.server_job_ids = list()
+        self._server_job_ids_by_server = dict()  # server name -> ids last polled/submitted for it
+        self._ids_submitted_since_snapshot = dict()  # server name -> ids recorded since the pass's last full poll
+        self._polled_job_ids_by_server = dict()  # server name -> ids from that server's most recent fresh poll only
         self.completed_incore_jobs = list()
         self.running_jobs = dict()
         self.allow_nonisomorphic_2d = allow_nonisomorphic_2d
@@ -757,6 +760,10 @@ class Scheduler(object):
                 or self._pending_pipe_sp or self._pending_pipe_freq \
                 or self._pending_pipe_irc or self._pending_pipe_conf_sp:
             self.timer = True
+            # Poll every active server's queue once per pass (not once per label): jobs
+            # submitted mid-pass are kept visible via the direct append in run_job(), so
+            # this single snapshot is reused by every label's completion check below.
+            self.get_server_job_ids()  # updates ``self.server_job_ids``
             for label in self.unique_species_labels:
                 if label in self.output and self.output[label]['convergence'] is False:
                     # Skip unconverged species.
@@ -764,7 +771,6 @@ class Scheduler(object):
                         del self.running_jobs[label]
                     continue
                 # Look for completed jobs and decide what jobs to run next.
-                self.get_server_job_ids()  # updates ``self.server_job_ids``
                 self.get_completed_incore_jobs()  # updates ``self.completed_incore_jobs``
                 if label not in self.running_jobs.keys():
                     continue
@@ -1216,8 +1222,32 @@ class Scheduler(object):
                 self.remote_project_paths[job.server] = job.remote_project_path
         self.check_max_simultaneous_jobs_limit(job.server)
         job.execute()
+        if job.execution_type == 'queue' and job.job_id is not None:
+            self.record_submitted_job_id(job.job_id, job.server)
         self.warn_on_collapsible_unrestricted_reference(label=label, job=job)
         self.save_restart_dict()
+
+    def record_submitted_job_id(self, job_id: str, server: str) -> None:
+        """
+        Record a just-submitted job's id in the current queue-listing snapshot.
+
+        Called immediately after a job is handed to a server (whether via ``run_job()`` or
+        the pipe coordinator's own submission calls), so a later completion check within the
+        same pass, for this or any other label, cannot read the job as finished merely
+        because its id postdates the pass's queue-listing poll.
+
+        Args:
+            job_id (str): The id the server assigned the job.
+            server (str): The server the job was submitted to.
+        """
+        self._server_job_ids_by_server.setdefault(server, [])
+        if job_id not in self._server_job_ids_by_server[server]:
+            self._server_job_ids_by_server[server].append(job_id)
+        if job_id not in self.server_job_ids:
+            self.server_job_ids.append(job_id)
+        self._ids_submitted_since_snapshot.setdefault(server, [])
+        if job_id not in self._ids_submitted_since_snapshot[server]:
+            self._ids_submitted_since_snapshot[server].append(job_id)
 
     def set_scan_resolution(self, args: dict, job_type: str) -> dict:
         """
@@ -4590,17 +4620,36 @@ class Scheduler(object):
         """
         Check job status on a specific server or on all active servers, get a list of relevant running job IDs.
 
+        Only the bucket(s) of the server(s) actually queried are refreshed;
+        other servers' last-known ids (including any appended by ``run_job()``
+        for jobs submitted since their last poll) are left untouched, then
+        ``self.server_job_ids`` is recomputed as the union of all buckets. A
+        scoped poll can therefore never silently drop another server's ids.
+
+        A poll called mid-pass (e.g. from ``check_max_simultaneous_jobs_limit()``) still
+        unions in every id recorded via ``record_submitted_job_id()`` since this pass's own
+        full snapshot, even if the fresh poll doesn't yet show it: a job can lag behind its
+        own submission in a live queue listing, and dropping it here would let it be read as
+        finished for the rest of the pass. A full, unscoped poll (``specific_server=None``,
+        as ``schedule_jobs()`` does once at the top of each pass) starts a new pass and so
+        clears that carried-over set first, since it's about to take the pass's own snapshot.
+
         Args:
             specific_server (str, optional): The server to check. If ``None``, check all active servers.
         """
-        self.server_job_ids = list()
+        if specific_server is None:
+            self._ids_submitted_since_snapshot = dict()
         for server in self.servers:
             if specific_server is None or server == specific_server:
                 if server != 'local':
                     with borrow_ssh_client(server) as ssh:
-                        self.server_job_ids.extend(ssh.check_running_jobs_ids())
+                        polled = ssh.check_running_jobs_ids()
                 else:
-                    self.server_job_ids.extend(check_running_jobs_ids())
+                    polled = check_running_jobs_ids()
+                self._polled_job_ids_by_server[server] = polled
+                pending = self._ids_submitted_since_snapshot.get(server, [])
+                self._server_job_ids_by_server[server] = polled + [job_id for job_id in pending if job_id not in polled]
+        self.server_job_ids = [job_id for ids in self._server_job_ids_by_server.values() for job_id in ids]
 
     def get_completed_incore_jobs(self):
         """
@@ -4875,6 +4924,8 @@ class Scheduler(object):
                                           level_of_theory=self.opt_level)
         else:
             job.troubleshoot_server()
+            if job.execution_type == 'queue' and job.job_id is not None:
+                self.record_submitted_job_id(job.job_id, job.server)
 
     def record_tsg_job_error(self,
                              label: str,
@@ -4961,6 +5012,8 @@ class Scheduler(object):
         if 'Unknown' in job.job_status[1]['keywords'] and 'change_node' not in job.ess_trsh_methods:
             job.ess_trsh_methods.append('change_node')
             job.troubleshoot_server()
+            if job.execution_type == 'queue' and job.job_id is not None:
+                self.record_submitted_job_id(job.job_id, job.server)
             if job.job_name not in self.running_jobs[label]:
                 self.running_jobs[label].append(job.job_name)  # mark as a running job
         if job.job_adapter == 'gaussian':
@@ -5521,11 +5574,15 @@ class Scheduler(object):
             continue_lopping = True
             while continue_lopping:
                 self.get_server_job_ids(specific_server=server)
-                if len(self.server_job_ids) >= servers_dict[server]['max_simultaneous_jobs']:
+                # Count only this server's most recent fresh poll, not the union with ids
+                # recorded via record_submitted_job_id() since the pass's last full snapshot:
+                # that union only shrinks on a full (unscoped) poll, so a job submitted mid-pass
+                # that has since actually finished would otherwise never be seen to drop out,
+                # and this wait loop would sleep forever.
+                if len(self._polled_job_ids_by_server.get(server, [])) >= servers_dict[server]['max_simultaneous_jobs']:
                     time.sleep(90)
                 else:
                     continue_lopping = False
-            self.get_server_job_ids()
 
 
 def species_has_freq(species_output_dict: dict,
